@@ -1,46 +1,60 @@
 'use strict';
+
 /** @type {import('sequelize-cli').Migration} */
 module.exports = {
   async up(queryInterface, Sequelize) {
-    await queryInterface.createTable('Conversations', {
+    await queryInterface.createTable('Chats', {
       id: {
         allowNull: false,
         autoIncrement: true,
         primaryKey: true,
         type: Sequelize.INTEGER
       },
-      graduateId: {
+      user1Id: {
         type: Sequelize.INTEGER,
         allowNull: false,
         references: {
-          model: 'Graduates',
+          model: 'Users',
           key: 'id'
         },
         onUpdate: 'CASCADE',
         onDelete: 'CASCADE'
       },
-      employerId: {
+      user2Id: {
         type: Sequelize.INTEGER,
         allowNull: false,
         references: {
-          model: 'Employers',
+          model: 'Users',
           key: 'id'
         },
         onUpdate: 'CASCADE',
         onDelete: 'CASCADE'
+      },
+      lastMessageAt: {
+        type: Sequelize.DATE
       },
       createdAt: {
         allowNull: false,
-        type: Sequelize.DATE
+        type: Sequelize.DATE,
+        defaultValue: Sequelize.literal('CURRENT_TIMESTAMP')
       },
       updatedAt: {
         allowNull: false,
-        type: Sequelize.DATE
+        type: Sequelize.DATE,
+        defaultValue: Sequelize.literal('CURRENT_TIMESTAMP')
       }
     });
+
+    await queryInterface.addIndex('Chats', ['user1Id']);
+    await queryInterface.addIndex('Chats', ['user2Id']);
+    await queryInterface.addConstraint('Chats', {
+      fields: ['user1Id', 'user2Id'],
+      type: 'unique',
+      name: 'unique_chat_users'
+    });
   },
+
   async down(queryInterface, Sequelize) {
-    await queryInterface.dropTable('Conversations');
+    await queryInterface.dropTable('Chats');
   }
 };
-
