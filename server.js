@@ -1,12 +1,13 @@
 require('dotenv').config();
-const express      = require('express');
-const morgan       = require('morgan');
+const express = require('express');
+const morgan = require('morgan');
 const cookieParser = require('cookie-parser');
 const cors = require('cors');
-const db           = require('./db/models');
-const authRoutes   = require('./routes/auth.routes');
+const db = require('./db/models');
+const authRoutes = require('./routes/auth.routes');
 const userRoutes = require('./routes/user.routes');
 const cookieRoutes = require('./routes/cookie.routes');
+const interviewRoutes = require('./routes/interview.routes');
 
 
 const PORT = process.env.PORT || 5001;
@@ -37,6 +38,7 @@ app.use('/api/user', userRoutes);
 app.use('/auth', authRoutes);
 app.use('/user', userRoutes);
 app.use('/cookies', cookieRoutes);
+app.use('/api/interviews', interviewRoutes);
 
 
 (async () => {

@@ -16,10 +16,9 @@ module.exports = (sequelize, DataTypes) => {
         as: 'vacancies'
       });
 
-      // User has many Interviews (as candidate)
-      User.hasMany(models.Interview, {
-        foreignKey: 'candidateId',
-        as: 'interviews'
+      User.hasMany(models.AIInterviewSession, {
+        foreignKey: 'userId',
+        as: 'aiInterviewSessions'
       });
 
       // User has many Chats
