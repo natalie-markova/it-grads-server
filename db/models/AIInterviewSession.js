@@ -23,7 +23,7 @@ module.exports = (sequelize, DataTypes) => {
       allowNull: false,
       references: {
         model: 'Users',
-        key: 'id'
+        key: 'id',
       }
     },
     direction: {
@@ -33,7 +33,7 @@ module.exports = (sequelize, DataTypes) => {
     technologies: {
       type: DataTypes.ARRAY(DataTypes.STRING),
       allowNull: false,
-      defaultValue: []
+      defaultValue: [],
     },
     level: {
       type: DataTypes.ENUM('junior', 'middle', 'senior'),

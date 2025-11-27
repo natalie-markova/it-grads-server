@@ -14,15 +14,15 @@ module.exports = (sequelize, DataTypes) => {
   AIInterviewMessage.init({
     sessionId: {
       type: DataTypes.INTEGER,
-      allowNull: false
+      allowNull: false,
     },
     role: {
       type: DataTypes.ENUM('assistant', 'user'),
-      allowNull: false
+      allowNull: false,
     },
     content: {
       type: DataTypes.TEXT,
-      allowNull: false
+      allowNull: false,
     }
   }, {
     sequelize,
