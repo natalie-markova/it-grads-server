@@ -1,5 +1,5 @@
 const express = require('express');
-const authMiddleware = require('../Middleware/authMiddleware');
+const authMiddleware = require('../middleware/authMiddleware');
 const db = require('../db/models');
 const checkUserIdMatches = require('../middleware/checkUserIdMatches');
 const { User } = db;
