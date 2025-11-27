@@ -10,9 +10,9 @@ module.exports = (sequelize, DataTypes) => {
         as: 'user'
       });
 
-      AIInterviewSession.hasMany(models.AIInterviewQuestion, {
+      AIInterviewSession.hasMany(models.AIInterviewMessage, {
         foreignKey: 'sessionId',
-        as: 'questions'
+        as: 'messages'
       });
     }
   }

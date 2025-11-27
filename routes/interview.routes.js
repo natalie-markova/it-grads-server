@@ -1,7 +1,8 @@
 const express = require('express');
 const router = express.Router();
-const { AIInterviewSession, AIInterviewQuestion, User } = require('../db/models');
+const { AIInterviewSession, AIInterviewMessage } = require('../db/models');
 const authMiddleware = require('../middleware/authMiddleware');
+const yandexGPTService = require('../services/yandexGPT.service');
 
 // ============= CREATE SESSION =============
 // POST /api/interviews - Создать новую сессию AI интервью
@@ -11,8 +12,8 @@ router.post('/', authMiddleware, async (req, res) => {
     const userId = req.userId;
 
     if (!direction || !technologies || !level) {
-      return res.status(400).json({ 
-        error: 'Missing required fields: direction, technologies, level' 
+      return res.status(400).json({
+        error: 'Missing required fields: direction, technologies, level'
       });
     }
 
@@ -26,7 +27,24 @@ router.post('/', authMiddleware, async (req, res) => {
       status: 'in-progress'
     });
 
-    res.status(201).json(session);
+    // Генерируем приветственное сообщение через YandexGPT
+    const greetingContent = await yandexGPTService.generateGreeting(
+        direction,
+        technologies,
+        level,
+        questionsCount || 10
+    );
+
+const firstMessage = await AIInterviewMessage.create({
+  sessionId: session.id,
+  role: 'assistant',
+  content: greetingContent
+});
+
+    res.status(201).json({
+      session,
+      firstMessage
+    });
   } catch (error) {
     console.error('Error creating interview session:', error);
     res.status(500).json({ error: 'Failed to create interview session' });
@@ -43,8 +61,9 @@ router.get('/my', authMiddleware, async (req, res) => {
       where: { userId },
       order: [['createdAt', 'DESC']],
       include: [{
-        model: AIInterviewQuestion,
-        as: 'questions'
+        model: AIInterviewMessage,
+        as: 'messages',
+        order: [['createdAt', 'ASC']]
       }]
     });
 
@@ -55,8 +74,8 @@ router.get('/my', authMiddleware, async (req, res) => {
   }
 });
 
-// ============= GET SESSION =============
-// GET /api/interviews/:sessionId - Получить сессию по ID
+// ============= GET SESSION WITH MESSAGES =============
+// GET /api/interviews/:sessionId - Получить сессию и всю историю сообщений
 router.get('/:sessionId', authMiddleware, async (req, res) => {
   try {
     const { sessionId } = req.params;
@@ -65,8 +84,9 @@ router.get('/:sessionId', authMiddleware, async (req, res) => {
     const session = await AIInterviewSession.findOne({
       where: { id: sessionId, userId },
       include: [{
-        model: AIInterviewQuestion,
-        as: 'questions'
+        model: AIInterviewMessage,
+        as: 'messages',
+        order: [['createdAt', 'ASC']]
       }]
     });
 
@@ -81,132 +101,70 @@ router.get('/:sessionId', authMiddleware, async (req, res) => {
   }
 });
 
-// ============= GET NEXT QUESTION =============
-// POST /api/interviews/:sessionId/next-question - Получить следующий вопрос (генерируется AI)
-router.post('/:sessionId/next-question', authMiddleware, async (req, res) => {
+// ============= SEND MESSAGE (USER ANSWER) =============
+// POST /api/interviews/:sessionId/message - Отправить сообщение пользователя и получить ответ AI
+router.post('/:sessionId/message', authMiddleware, async (req, res) => {
   try {
     const { sessionId } = req.params;
+    const { content } = req.body;
     const userId = req.userId;
 
+    if (!content || !content.trim()) {
+      return res.status(400).json({ error: 'Message content is required' });
+    }
+
     const session = await AIInterviewSession.findOne({
-      where: { id: sessionId, userId }
+      where: { id: sessionId, userId },
+      include: [{
+        model: AIInterviewMessage,
+        as: 'messages',
+        order: [['createdAt', 'ASC']]
+      }]
     });
 
     if (!session) {
       return res.status(404).json({ error: 'Interview session not found' });
     }
 
-    // TODO: Здесь будет интеграция с YandexGPT
-    // Пока возвращаем mock вопрос
-    const mockQuestion = {
-      question: `Вопрос ${session.currentQuestionIndex + 1}: Расскажите о ${session.technologies[0]}`,
-      difficulty: session.level,
-      technology: session.technologies[0],
-      hints: ['Подсказка 1', 'Подсказка 2']
-    };
-
-    // Сохраняем вопрос в БД
-    const question = await AIInterviewQuestion.create({
+    // Сохраняем сообщение пользователя
+    const userMessage = await AIInterviewMessage.create({
       sessionId: session.id,
-      ...mockQuestion
+      role: 'user',
+      content: content.trim()
     });
 
-    // Обновляем индекс текущего вопроса
-    await session.update({ 
-      currentQuestionIndex: session.currentQuestionIndex + 1 
+    // Генерируем ответ AI на основе истории диалога
+    const messageHistory = [...session.messages, { role: 'user', content: content.trim() }];
+    const aiContent = await yandexGPTService.generateNextMessage(
+        session.direction,
+        session.technologies,
+        session.level,
+        session.questionsCount,
+        messageHistory
+    );
+    const aiMessage = await AIInterviewMessage.create({
+      sessionId: session.id,
+      role: 'assistant',
+      content: aiContent
     });
 
-    res.json(question);
-  } catch (error) {
-    console.error('Error generating question:', error);
-    res.status(500).json({ error: 'Failed to generate question' });
-  }
-});
-
-// ============= SUBMIT ANSWER =============
-// POST /api/interviews/:sessionId/answer - Отправить ответ на вопрос
-router.post('/:sessionId/answer', authMiddleware, async (req, res) => {
-  try {
-    const { sessionId } = req.params;
-    const { questionId, answer } = req.body;
-    const userId = req.userId;
-
-    const session = await AIInterviewSession.findOne({
-      where: { id: sessionId, userId }
+    // Обновляем счетчик вопросов
+    await session.update({
+      currentQuestionIndex: session.currentQuestionIndex + 1
     });
 
-    if (!session) {
-      return res.status(404).json({ error: 'Interview session not found' });
-    }
-
-    const question = await AIInterviewQuestion.findOne({
-      where: { id: questionId, sessionId }
-    });
-
-    if (!question) {
-      return res.status(404).json({ error: 'Question not found' });
-    }
-
-    // TODO: Здесь будет интеграция с YandexGPT для оценки ответа
-    // Пока возвращаем mock оценку
-    const mockScore = Math.floor(Math.random() * 40) + 60; // 60-100
-    const mockFeedback = 'Хороший ответ! Рекомендуем изучить...';
-
-    await question.update({
-      userAnswer: answer,
-      score: mockScore,
-      feedback: mockFeedback,
-      answeredAt: new Date()
-    });
-
-    res.json({ 
-      score: mockScore, 
-      feedback: mockFeedback 
+    res.json({
+      userMessage,
+      aiMessage
     });
   } catch (error) {
-    console.error('Error submitting answer:', error);
-    res.status(500).json({ error: 'Failed to submit answer' });
-  }
-});
-
-// ============= GET HINT =============
-// POST /api/interviews/:sessionId/hint - Получить подсказку
-router.post('/:sessionId/hint', authMiddleware, async (req, res) => {
-  try {
-    const { sessionId } = req.params;
-    const { questionId } = req.body;
-    const userId = req.userId;
-
-    const session = await AIInterviewSession.findOne({
-      where: { id: sessionId, userId }
-    });
-
-    if (!session) {
-      return res.status(404).json({ error: 'Interview session not found' });
-    }
-
-    const question = await AIInterviewQuestion.findOne({
-      where: { id: questionId, sessionId }
-    });
-
-    if (!question) {
-      return res.status(404).json({ error: 'Question not found' });
-    }
-
-    // TODO: Здесь будет AI генерация подсказки
-    const hint = question.hints && question.hints.length > 0 
-      ? question.hints[0] 
-      : 'Подумайте о базовых концепциях';
-
-    res.json({ hint });
-  } catch (error) {
-    console.error('Error getting hint:', error);
-    res.status(500).json({ error: 'Failed to get hint' });
+    console.error('Error sending message:', error);
+    res.status(500).json({ error: 'Failed to send message' });
   }
 });
 
 // ============= COMPLETE SESSION =============
-// POST /api/interviews/:sessionId/complete - Завершить интервью
+// POST /api/interviews/:sessionId/complete - Завершить интервью и получить оценку
 router.post('/:sessionId/complete', authMiddleware, async (req, res) => {
   try {
     const { sessionId } = req.params;
@@ -215,8 +173,9 @@ router.post('/:sessionId/complete', authMiddleware, async (req, res) => {
     const session = await AIInterviewSession.findOne({
       where: { id: sessionId, userId },
       include: [{
-        model: AIInterviewQuestion,
-        as: 'questions'
+        model: AIInterviewMessage,
+        as: 'messages',
+        order: [['createdAt', 'ASC']]
       }]
     });
 
@@ -224,15 +183,16 @@ router.post('/:sessionId/complete', authMiddleware, async (req, res) => {
       return res.status(404).json({ error: 'Interview session not found' });
     }
 
-    // Подсчитываем общий балл
-    const totalScore = session.questions.reduce((sum, q) => sum + (q.score || 0), 0) / session.questions.length;
+    // Генерируем итоговую оценку через YandexGPT
+    const feedback = await yandexGPTService.generateFeedback(
+        session.direction,
+        session.technologies,
+        session.level,
+        session.messages
+    );
 
-    // Генерируем рекомендации
-    const recommendations = [
-      'Улучшите знания по основам',
-      'Практикуйте больше задач',
-      'Изучите best practices'
-    ];
+    const totalScore = feedback.totalScore;
+    const recommendations = feedback.recommendations;
 
     await session.update({
       status: 'completed',
@@ -241,19 +201,17 @@ router.post('/:sessionId/complete', authMiddleware, async (req, res) => {
     });
 
     res.json({
-      score: totalScore,
-      strengths: ['Хорошее понимание теории'],
-      weaknesses: ['Недостаточно практики'],
-      recommendations,
-      detailedFeedback: 'Общее впечатление положительное'
+        score: totalScore,
+        strengths: feedback.strengths,
+        weaknesses: feedback.weaknesses,
+        recommendations: feedback.recommendations,
+        detailedFeedback: feedback.detailedFeedback
     });
   } catch (error) {
     console.error('Error completing interview:', error);
     res.status(500).json({ error: 'Failed to complete interview' });
   }
 });
-
-
 
 // ============= DELETE SESSION =============
 // DELETE /api/interviews/:sessionId - Удалить сессию
