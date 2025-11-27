@@ -18,6 +18,7 @@ const db = require('./db/models');
 const authRoutes = require('./routes/auth.routes');
 const userRoutes = require('./routes/user.routes');
 const cookieRoutes = require('./routes/cookie.routes');
+const interviewRoutes = require('./routes/interview.routes');
 
 
 
