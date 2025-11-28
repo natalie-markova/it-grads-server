@@ -1,7 +1,12 @@
 // Load environment variables
 const fs = require('fs');
 const path = require('path');
-if (fs.existsSync(path.join(__dirname, '.env.local'))) {
+
+// Priority: .env.production > .env.local > .env
+if (fs.existsSync(path.join(__dirname, '.env.production'))) {
+  require('dotenv').config({ path: path.join(__dirname, '.env.production') });
+  console.log('📝 Loaded .env.production');
+} else if (fs.existsSync(path.join(__dirname, '.env.local'))) {
   require('dotenv').config({ path: path.join(__dirname, '.env.local') });
   console.log('📝 Loaded .env.local');
 } else {

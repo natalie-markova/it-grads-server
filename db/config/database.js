@@ -1,9 +1,13 @@
 const fs = require('fs');
 const path = require('path');
 
-// Load .env.local if it exists, otherwise load .env
+// Priority: .env.production > .env.local > .env
+const envProductionPath = path.join(__dirname, '../../.env.production');
 const envLocalPath = path.join(__dirname, '../../.env.local');
-if (fs.existsSync(envLocalPath)) {
+
+if (fs.existsSync(envProductionPath)) {
+  require('dotenv').config({ path: envProductionPath });
+} else if (fs.existsSync(envLocalPath)) {
   require('dotenv').config({ path: envLocalPath });
 } else {
   require('dotenv').config();
