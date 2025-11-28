@@ -77,37 +77,43 @@ class YandexGPTService {
 async generateNextMessage(direction, technologies, level, questionsCount, messageHistory) {
   // Подсчитываем количество вопросов от AI
   const aiMessagesCount = messageHistory.filter(msg => msg.role === 'assistant').length;
-  
+
+  // Проверяем, не превышено ли общее количество вопросов
+  if (aiMessagesCount >= questionsCount) {
+    return 'Спасибо за ответы! Интервью завершено.';
+  }
+
   // Определяем количество вопросов на каждую технологию
-  const questionsPerTech = Math.floor(questionsCount / technologies.length);
-  
-  // Определяем текущую технологию на основе прогресса
+  const questionsPerTech = Math.ceil(questionsCount / technologies.length);
+
+  // Определяем текущую технологию
   const currentTechIndex = Math.min(
     Math.floor((aiMessagesCount - 1) / questionsPerTech),
     technologies.length - 1
   );
   const currentTech = technologies[currentTechIndex];
   const questionInCurrentTech = ((aiMessagesCount - 1) % questionsPerTech) + 1;
-  
+
   const systemPrompt = `Ты - технический интервьюер. Позиция: ${direction} ${level}.
 
-    ТЕКУЩАЯ ТЕМА: ${currentTech} (вопрос ${questionInCurrentTech}/${questionsPerTech})
+    ПРОГРЕСС: Вопрос ${aiMessagesCount}/${questionsCount}
+    ТЕХНОЛОГИЯ: ${currentTech} (вопрос ${questionInCurrentTech}/${questionsPerTech})
 
-    КРИТИЧЕСКИ ВАЖНЫЕ ПРАВИЛА:
-    1. ВСЕГДА задавай ТОЛЬКО ОДИН вопрос
-    2. НЕ задавай уточняющих вопросов - сразу переходи к новой теме
-    3. Если ответ правильный → кратко ("Верно") + новый вопрос по ${currentTech}
-    4. Если ответ неполный/неточный → СРАЗУ новый вопрос по ДРУГОЙ теме в ${currentTech}
-    5. НЕ проси примеры, НЕ проси уточнений - просто задавай следующий вопрос
-    6. Держи нейтральный тон без восторгов
+    СТРОГИЕ ПРАВИЛА:
+    1. Сначала дай КОРОТКУЮ обратную связь на последний ответ (1 предложение: "Верно" / "Не совсем верно" / "Неправильно")
+    2. Затем задай ТОЛЬКО ОДИН новый вопрос по ${currentTech}
+    3. Вопрос должен быть коротким (максимум 10 слов)
+    4. НЕ повторяй уже заданные вопросы из истории диалога
+    5. Игнорируй качество ответов - ВСЕГДА задавай новый вопрос по ДРУГОЙ теме
+    6. Формат ответа: "Верно/Не верно. Следующий вопрос: ..."
 
-    ВОПРОСЫ ПО ${currentTech}:
-    ${currentTech === 'React' ? '- Что такое хуки?\n- Объясните Virtual DOM\n- Для чего useEffect?\n- Что такое props?' : ''}
-    ${currentTech === 'JavaScript' ? '- Что такое замыкание?\n- Разница var и let?\n- Что такое промисы?\n- Объясните event loop' : ''}
-    ${currentTech === 'TypeScript' ? '- Зачем TypeScript?\n- Что такое интерфейсы?\n- Что такое дженерики?\n- Разница type и interface?' : ''}
-    ${currentTech === 'Node.js' ? '- Что такое middleware?\n- Что такое event loop?\n- Что такое streams?\n- Зачем async/await?' : ''}
+    ТЕМЫ ПО ${currentTech}:
+    ${currentTech === 'React' ? 'хуки, Virtual DOM, props, state, context, lifecycle, refs, мемоизация' : ''}
+    ${currentTech === 'JavaScript' ? 'замыкания, переменные, промисы, event loop, this, прототипы, классы, модули' : ''}
+    ${currentTech === 'TypeScript' ? 'типы, интерфейсы, дженерики, enum, декораторы, утилиты, type guards' : ''}
+    ${currentTech === 'Node.js' ? 'модули, event loop, streams, buffer, middleware, async, process, cluster' : ''}
 
-    Задай ОДИН короткий вопрос по ${currentTech}. НЕ уточняй ответы - переходи к новым темам.`;
+    Пример правильного ответа: "Верно! Что такое замыкание?"`;
 
   const messages = [
     { role: 'system', text: systemPrompt },
@@ -117,7 +123,7 @@ async generateNextMessage(direction, technologies, level, questionsCount, messag
     }))
   ];
 
-  return await this.sendRequest(messages, { temperature: 0.6, maxTokens: 400 });
+  return await this.sendRequest(messages, { temperature: 0.7, maxTokens: 200 });
 }
 
   /**
