@@ -53,21 +53,19 @@ class YandexGPTService {
  * Создать приветственное сообщение для начала интервью
  */
     async generateGreeting(direction, technologies, level, questionsCount) {
-        const systemPrompt = `Ты - технический интервьюер. Проводишь собеседование для ${direction}-разработчика уровня ${level}.
-    Технологии для проверки: ${technologies.join(', ')}.
+        const systemPrompt = `Ты - технический интервьюер. Собеседование на позицию ${direction}-разработчика уровня ${level}.
+    Технологии: ${technologies.join(', ')}.
 
-    ВАЖНЫЕ ПРАВИЛА:
-    1. Задавай ТОЛЬКО ОДИН вопрос за раз
-    2. Начни с приветствия и ОДНОГО простого теоретического вопроса
-    3. Вопросы должны быть конкретными и техническими
-    4. Фокусируйся на знании основ и теории
-    5. Примеры вопросов: "Что такое замыкание в JavaScript?", "Объясните разницу между let и const", "Что такое Virtual DOM в React?"
+    ПРАВИЛА:
+    - Будь профессиональным, но не слишком формальным
+    - Задавай ТОЛЬКО ОДИН вопрос за раз
+    - Вопросы должны быть конкретными и техническими
 
-    Начни с короткого приветствия и задай ОДИН простой теоретический вопрос.`;
+    Начни с короткого приветствия и задай первый вопрос.`;
 
         const messages = [
             { role: 'system', text: systemPrompt },
-            { role: 'user', text: 'Начни интервью с приветствия и первого вопроса' }
+            { role: 'user', text: 'Начни интервью' }
         ];
 
         return await this.sendRequest(messages, { temperature: 0.6 });
@@ -79,38 +77,43 @@ class YandexGPTService {
 async generateNextMessage(direction, technologies, level, questionsCount, messageHistory) {
   // Подсчитываем количество вопросов от AI
   const aiMessagesCount = messageHistory.filter(msg => msg.role === 'assistant').length;
-  
+
+  // Проверяем, не превышено ли общее количество вопросов
+  if (aiMessagesCount >= questionsCount) {
+    return 'Спасибо за ответы! Интервью завершено.';
+  }
+
   // Определяем количество вопросов на каждую технологию
-  const questionsPerTech = Math.floor(questionsCount / technologies.length);
-  
-  // Определяем текущую технологию на основе прогресса
+  const questionsPerTech = Math.ceil(questionsCount / technologies.length);
+
+  // Определяем текущую технологию
   const currentTechIndex = Math.min(
     Math.floor((aiMessagesCount - 1) / questionsPerTech),
     technologies.length - 1
   );
   const currentTech = technologies[currentTechIndex];
   const questionInCurrentTech = ((aiMessagesCount - 1) % questionsPerTech) + 1;
-  
-  const systemPrompt = `Ты - технический интервьюер для ${direction}-разработчика уровня ${level}.
 
-    ТЕКУЩАЯ ТЕМА: ${currentTech}
-    Вопрос ${questionInCurrentTech} из ${questionsPerTech} по теме "${currentTech}"
-    Всего технологий: ${technologies.join(', ')}
+  const systemPrompt = `Ты - технический интервьюер. Позиция: ${direction} ${level}.
+
+    ПРОГРЕСС: Вопрос ${aiMessagesCount}/${questionsCount}
+    ТЕХНОЛОГИЯ: ${currentTech} (вопрос ${questionInCurrentTech}/${questionsPerTech})
 
     СТРОГИЕ ПРАВИЛА:
-    1. Задавай вопросы ТОЛЬКО по текущей теме: ${currentTech}
-    2. Задавай ТОЛЬКО ОДИН вопрос за раз
-    3. Если ответ хороший - кратко похвали (1 предложение) и задай следующий вопрос по ${currentTech}
-    4. Если ответ неполный - попроси уточнить ОДНИМ вопросом по ${currentTech}
-    5. Вопросы должны быть теоретическими и практическими
-    6. После ${questionsPerTech} вопросов по ${currentTech}, система автоматически переключит на следующую тему
+    1. Сначала дай КОРОТКУЮ обратную связь на последний ответ (1 предложение: "Верно" / "Не совсем верно" / "Неправильно")
+    2. Затем задай ТОЛЬКО ОДИН новый вопрос по ${currentTech}
+    3. Вопрос должен быть коротким (максимум 10 слов)
+    4. НЕ повторяй уже заданные вопросы из истории диалога
+    5. Игнорируй качество ответов - ВСЕГДА задавай новый вопрос по ДРУГОЙ теме
+    6. Формат ответа: "Верно/Не верно. Следующий вопрос: ..."
 
-    Примеры вопросов по ${currentTech}:
-    ${currentTech === 'React' ? '- Что такое хуки? Назовите основные\n- Объясните Virtual DOM\n- Что такое props drilling?' : ''}
-    ${currentTech === 'JavaScript' ? '- Что такое замыкание?\n- Объясните event loop\n- Разница между var, let, const?' : ''}
-    ${currentTech === 'TypeScript' ? '- Что такое типы в TypeScript?\n- Что такое interface и type?\n- Объясните generic types' : ''}
+    ТЕМЫ ПО ${currentTech}:
+    ${currentTech === 'React' ? 'хуки, Virtual DOM, props, state, context, lifecycle, refs, мемоизация' : ''}
+    ${currentTech === 'JavaScript' ? 'замыкания, переменные, промисы, event loop, this, прототипы, классы, модули' : ''}
+    ${currentTech === 'TypeScript' ? 'типы, интерфейсы, дженерики, enum, декораторы, утилиты, type guards' : ''}
+    ${currentTech === 'Node.js' ? 'модули, event loop, streams, buffer, middleware, async, process, cluster' : ''}
 
-    Задай ОДИН вопрос по теме ${currentTech}.`;
+    Пример правильного ответа: "Верно! Что такое замыкание?"`;
 
   const messages = [
     { role: 'system', text: systemPrompt },
@@ -120,7 +123,7 @@ async generateNextMessage(direction, technologies, level, questionsCount, messag
     }))
   ];
 
-  return await this.sendRequest(messages, { temperature: 0.6, maxTokens: 400 });
+  return await this.sendRequest(messages, { temperature: 0.7, maxTokens: 200 });
 }
 
   /**

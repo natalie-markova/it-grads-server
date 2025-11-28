@@ -62,6 +62,20 @@ module.exports = (sequelize, DataTypes) => {
       type: DataTypes.ARRAY(DataTypes.TEXT),
       allowNull: true,
       defaultValue: []
+    },
+    strengths: {
+      type: DataTypes.ARRAY(DataTypes.TEXT),
+      allowNull: true,
+      defaultValue: []
+    },
+    weaknesses: {
+      type: DataTypes.ARRAY(DataTypes.TEXT),
+      allowNull: true,
+      defaultValue: []
+    },
+    detailedFeedback: {
+      type: DataTypes.TEXT,
+      allowNull: true
     }
   }, {
     sequelize,
