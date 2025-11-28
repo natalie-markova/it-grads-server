@@ -19,6 +19,7 @@ const authRoutes = require('./routes/auth.routes');
 const userRoutes = require('./routes/user.routes');
 const cookieRoutes = require('./routes/cookie.routes');
 const interviewRoutes = require('./routes/interview.routes');
+const roadmapRoutes = require('./routes/roadmap.routes');
 
 
 
@@ -71,6 +72,7 @@ app.use('/auth', authRoutes);
 app.use('/user', userRoutes);
 app.use('/cookies', cookieRoutes);
 app.use('/api/interviews', interviewRoutes);
+app.use('/api/roadmaps', roadmapRoutes);
 
 
 (async () => {
