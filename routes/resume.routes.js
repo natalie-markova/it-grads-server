@@ -12,12 +12,15 @@ const verifyToken = require('../middleware/verifyToken');
 // GET /api/resumes - Получить все активные резюме
 router.get('/', async (req, res) => {
   try {
-    const { skills, location, minSalary, maxSalary } = req.query;
+    const { skills, location, minSalary, maxSalary, level, search } = req.query;
 
     const where = { isActive: true };
 
     if (skills) {
-      where.skills = { [db.Sequelize.Op.contains]: skills.split(',') };
+      const skillsArray = skills.split(',').map(s => s.trim());
+      where.skillsArray = {
+        [db.Sequelize.Op.overlap]: skillsArray
+      };
     }
 
     if (location) {
@@ -33,6 +36,18 @@ router.get('/', async (req, res) => {
         ...(where.desiredSalary || {}),
         [db.Sequelize.Op.lte]: parseInt(maxSalary)
       };
+    }
+
+    if (level) {
+      where.level = level;
+    }
+
+    if (search) {
+      where[db.Sequelize.Op.or] = [
+        { title: { [db.Sequelize.Op.iLike]: `%${search}%` } },
+        { description: { [db.Sequelize.Op.iLike]: `%${search}%` } },
+        { skills: { [db.Sequelize.Op.iLike]: `%${search}%` } }
+      ];
     }
 
     const resumes = await Resume.findAll({
@@ -92,18 +107,20 @@ router.get('/user/:userId', async (req, res) => {
 // POST /api/resumes - Создать новое резюме
 router.post('/', verifyToken, async (req, res) => {
   try {
-    const { title, description, skills, experience, education, desiredSalary, location, contactInfo } = req.body;
+    const { title, description, skills, skillsArray, experience, education, portfolio, desiredSalary, location, level } = req.body;
 
     const resume = await Resume.create({
       userId: req.user.id,
       title,
       description,
       skills,
+      skillsArray: skillsArray || [],
       experience,
       education,
+      portfolio,
       desiredSalary,
       location,
-      contactInfo,
+      level: level || 'junior',
       isActive: true
     });
 
@@ -127,19 +144,23 @@ router.put('/:id', verifyToken, async (req, res) => {
       return res.status(403).json({ message: 'Нет доступа' });
     }
 
-    const { title, description, skills, experience, education, desiredSalary, location, contactInfo, isActive } = req.body;
+    const { title, description, skills, skillsArray, experience, education, portfolio, desiredSalary, location, level, isActive, radarImage } = req.body;
 
-    await resume.update({
-      title,
-      description,
-      skills,
-      experience,
-      education,
-      desiredSalary,
-      location,
-      contactInfo,
-      isActive
-    });
+    const updateData = {};
+    if (title !== undefined) updateData.title = title;
+    if (description !== undefined) updateData.description = description;
+    if (skills !== undefined) updateData.skills = skills;
+    if (skillsArray !== undefined) updateData.skillsArray = skillsArray;
+    if (experience !== undefined) updateData.experience = experience;
+    if (education !== undefined) updateData.education = education;
+    if (portfolio !== undefined) updateData.portfolio = portfolio;
+    if (desiredSalary !== undefined) updateData.desiredSalary = desiredSalary;
+    if (location !== undefined) updateData.location = location;
+    if (level !== undefined) updateData.level = level;
+    if (isActive !== undefined) updateData.isActive = isActive;
+    if (radarImage !== undefined) updateData.radarImage = radarImage;
+
+    await resume.update(updateData);
 
     res.json(resume);
   } catch (error) {

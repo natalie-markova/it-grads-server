@@ -29,7 +29,14 @@ module.exports = (sequelize, DataTypes) => {
       type: DataTypes.TEXT
     },
     skills: {
-      type: DataTypes.TEXT
+      type: DataTypes.JSONB,
+      allowNull: true,
+      defaultValue: []
+    },
+    skillsArray: {
+      type: DataTypes.JSONB,
+      allowNull: true,
+      defaultValue: []
     },
     experience: {
       type: DataTypes.TEXT
@@ -37,12 +44,29 @@ module.exports = (sequelize, DataTypes) => {
     education: {
       type: DataTypes.TEXT
     },
+    portfolio: {
+      type: DataTypes.TEXT,
+      allowNull: true
+    },
     desiredSalary: {
       type: DataTypes.INTEGER
+    },
+    location: {
+      type: DataTypes.STRING,
+      allowNull: true
+    },
+    level: {
+      type: DataTypes.ENUM('junior', 'middle', 'senior', 'lead'),
+      allowNull: true,
+      defaultValue: 'junior'
     },
     isActive: {
       type: DataTypes.BOOLEAN,
       defaultValue: true
+    },
+    radarImage: {
+      type: DataTypes.TEXT,
+      allowNull: true
     }
   }, {
     sequelize,

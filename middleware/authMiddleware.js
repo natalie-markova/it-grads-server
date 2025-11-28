@@ -7,20 +7,23 @@ module.exports = function authMiddleware(req, res, next) {
   const token = hdr.startsWith('Bearer ')
     ? hdr.slice(7)
     : req.cookies.accessToken;
-  
+
   console.log('Token used for verification:', token);
-  
+  console.log('JWT_SECRET exists:', !!JWT_SECRET);
+
   if (!token) return res.status(401).json({ message: 'No token' });
 
   try {
-    const { userId } = jwt.verify(token, JWT_SECRET);
-    req.userId = userId;
-    
+    const decoded = jwt.verify(token, JWT_SECRET);
+    console.log('Decoded token:', decoded);
+    req.userId = decoded.userId;
+
     return next();
-  } catch {
+  } catch (error) {
+    console.error('Token verification error:', error.message);
     return res
       .status(401)
       .json({ message: 'Invalid token' });
   }
-  
+
 };

@@ -21,6 +21,10 @@ module.exports = (sequelize, DataTypes) => {
       type: DataTypes.INTEGER,
       allowNull: false
     },
+    companyName: {
+      type: DataTypes.STRING,
+      allowNull: true
+    },
     title: {
       type: DataTypes.STRING,
       allowNull: false
@@ -41,6 +45,20 @@ module.exports = (sequelize, DataTypes) => {
     employmentType: {
       type: DataTypes.ENUM('full-time', 'part-time', 'contract', 'internship'),
       defaultValue: 'full-time'
+    },
+    level: {
+      type: DataTypes.ENUM('junior', 'middle', 'senior', 'lead'),
+      allowNull: true,
+      defaultValue: 'middle'
+    },
+    skills: {
+      type: DataTypes.JSONB,
+      allowNull: true,
+      defaultValue: []
+    },
+    benefits: {
+      type: DataTypes.TEXT,
+      allowNull: true
     },
     isActive: {
       type: DataTypes.BOOLEAN,

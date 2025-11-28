@@ -20,6 +20,9 @@ const userRoutes = require('./routes/user.routes');
 const cookieRoutes = require('./routes/cookie.routes');
 const interviewRoutes = require('./routes/interview.routes');
 const roadmapRoutes = require('./routes/roadmap.routes');
+const vacancyRoutes = require('./routes/vacancy.routes');
+const resumeRoutes = require('./routes/resume.routes');
+const skillsRoutes = require('./routes/skills.routes');
 
 
 
@@ -73,6 +76,9 @@ app.use('/user', userRoutes);
 app.use('/cookies', cookieRoutes);
 app.use('/api/interviews', interviewRoutes);
 app.use('/api/roadmaps', roadmapRoutes);
+app.use('/api/vacancies', vacancyRoutes);
+app.use('/api/resumes', resumeRoutes);
+app.use('/api/skills', skillsRoutes);
 
 
 (async () => {

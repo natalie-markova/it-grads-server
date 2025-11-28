@@ -7,7 +7,7 @@ const verifyToken = require('../middleware/verifyToken');
 // GET /api/vacancies - Получить все активные вакансии
 router.get('/', async (req, res) => {
   try {
-    const { location, minSalary, maxSalary, employmentType } = req.query;
+    const { location, minSalary, maxSalary, employmentType, level, skills, search } = req.query;
 
     const where = { isActive: true };
 
@@ -30,6 +30,26 @@ router.get('/', async (req, res) => {
       where.employmentType = employmentType;
     }
 
+    if (level) {
+      where.level = level;
+    }
+
+    if (search) {
+      where[db.Sequelize.Op.or] = [
+        { title: { [db.Sequelize.Op.iLike]: `%${search}%` } },
+        { description: { [db.Sequelize.Op.iLike]: `%${search}%` } },
+        { companyName: { [db.Sequelize.Op.iLike]: `%${search}%` } }
+      ];
+    }
+
+    // Filter by skills if provided
+    if (skills) {
+      const skillsArray = Array.isArray(skills) ? skills : [skills];
+      where.skills = {
+        [db.Sequelize.Op.contains]: skillsArray
+      };
+    }
+
     const vacancies = await Vacancy.findAll({
       where,
       include: [{
@@ -44,6 +64,78 @@ router.get('/', async (req, res) => {
   } catch (error) {
     console.error('Error fetching vacancies:', error);
     res.status(500).json({ message: 'Ошибка при получении вакансий' });
+  }
+});
+
+// GET /api/vacancies/recommended/:userId - Получить рекомендованные вакансии на основе навыков
+router.get('/recommended/:userId', async (req, res) => {
+  try {
+    const { Resume } = db;
+    const userId = parseInt(req.params.userId);
+
+    // Получаем навыки пользователя из резюме
+    const resume = await Resume.findOne({
+      where: { userId },
+      attributes: ['skills']
+    });
+
+    if (!resume || !resume.skills || resume.skills.length === 0) {
+      // Если навыки не найдены, возвращаем все вакансии
+      const vacancies = await Vacancy.findAll({
+        where: { isActive: true },
+        include: [{
+          model: User,
+          as: 'employer',
+          attributes: ['id', 'username', 'email', 'avatar']
+        }],
+        order: [['createdAt', 'DESC']],
+        limit: 50
+      });
+      return res.json(vacancies.map(v => ({ ...v.toJSON(), matchScore: 0 })));
+    }
+
+    const userSkills = resume.skills;
+
+    // Получаем все активные вакансии
+    const vacancies = await Vacancy.findAll({
+      where: { isActive: true },
+      include: [{
+        model: User,
+        as: 'employer',
+        attributes: ['id', 'username', 'email', 'avatar']
+      }]
+    });
+
+    // Вычисляем совпадение навыков для каждой вакансии
+    const vacanciesWithScore = vacancies.map(vacancy => {
+      const vacancySkills = vacancy.skills || [];
+
+      // Подсчет совпадающих навыков
+      const matchingSkills = userSkills.filter(skill =>
+        vacancySkills.some(vSkill =>
+          vSkill.toLowerCase().includes(skill.toLowerCase()) ||
+          skill.toLowerCase().includes(vSkill.toLowerCase())
+        )
+      );
+
+      const matchScore = vacancySkills.length > 0
+        ? (matchingSkills.length / vacancySkills.length) * 100
+        : 0;
+
+      return {
+        ...vacancy.toJSON(),
+        matchScore: Math.round(matchScore),
+        matchingSkills: matchingSkills
+      };
+    });
+
+    // Сортируем по совпадению навыков (сначала лучшие совпадения)
+    vacanciesWithScore.sort((a, b) => b.matchScore - a.matchScore);
+
+    res.json(vacanciesWithScore);
+  } catch (error) {
+    console.error('Error fetching recommended vacancies:', error);
+    res.status(500).json({ message: 'Ошибка при получении рекомендованных вакансий' });
   }
 });
 
