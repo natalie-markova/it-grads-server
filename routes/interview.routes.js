@@ -201,7 +201,7 @@ router.post('/:sessionId/complete', authMiddleware, async (req, res) => {
     });
 
     res.json({
-        score: totalScore,
+        totalScore: totalScore,
         strengths: feedback.strengths,
         weaknesses: feedback.weaknesses,
         recommendations: feedback.recommendations,

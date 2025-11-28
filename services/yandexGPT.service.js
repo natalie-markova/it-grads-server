@@ -53,21 +53,19 @@ class YandexGPTService {
  * Создать приветственное сообщение для начала интервью
  */
     async generateGreeting(direction, technologies, level, questionsCount) {
-        const systemPrompt = `Ты - технический интервьюер. Проводишь собеседование для ${direction}-разработчика уровня ${level}.
-    Технологии для проверки: ${technologies.join(', ')}.
+        const systemPrompt = `Ты - технический интервьюер. Собеседование на позицию ${direction}-разработчика уровня ${level}.
+    Технологии: ${technologies.join(', ')}.
 
-    ВАЖНЫЕ ПРАВИЛА:
-    1. Задавай ТОЛЬКО ОДИН вопрос за раз
-    2. Начни с приветствия и ОДНОГО простого теоретического вопроса
-    3. Вопросы должны быть конкретными и техническими
-    4. Фокусируйся на знании основ и теории
-    5. Примеры вопросов: "Что такое замыкание в JavaScript?", "Объясните разницу между let и const", "Что такое Virtual DOM в React?"
+    ПРАВИЛА:
+    - Будь профессиональным, но не слишком формальным
+    - Задавай ТОЛЬКО ОДИН вопрос за раз
+    - Вопросы должны быть конкретными и техническими
 
-    Начни с короткого приветствия и задай ОДИН простой теоретический вопрос.`;
+    Начни с короткого приветствия и задай первый вопрос.`;
 
         const messages = [
             { role: 'system', text: systemPrompt },
-            { role: 'user', text: 'Начни интервью с приветствия и первого вопроса' }
+            { role: 'user', text: 'Начни интервью' }
         ];
 
         return await this.sendRequest(messages, { temperature: 0.6 });
@@ -91,26 +89,25 @@ async generateNextMessage(direction, technologies, level, questionsCount, messag
   const currentTech = technologies[currentTechIndex];
   const questionInCurrentTech = ((aiMessagesCount - 1) % questionsPerTech) + 1;
   
-  const systemPrompt = `Ты - технический интервьюер для ${direction}-разработчика уровня ${level}.
+  const systemPrompt = `Ты - технический интервьюер. Позиция: ${direction} ${level}.
 
-    ТЕКУЩАЯ ТЕМА: ${currentTech}
-    Вопрос ${questionInCurrentTech} из ${questionsPerTech} по теме "${currentTech}"
-    Всего технологий: ${technologies.join(', ')}
+    ТЕКУЩАЯ ТЕМА: ${currentTech} (вопрос ${questionInCurrentTech}/${questionsPerTech})
 
-    СТРОГИЕ ПРАВИЛА:
-    1. Задавай вопросы ТОЛЬКО по текущей теме: ${currentTech}
-    2. Задавай ТОЛЬКО ОДИН вопрос за раз
-    3. Если ответ хороший - кратко похвали (1 предложение) и задай следующий вопрос по ${currentTech}
-    4. Если ответ неполный - попроси уточнить ОДНИМ вопросом по ${currentTech}
-    5. Вопросы должны быть теоретическими и практическими
-    6. После ${questionsPerTech} вопросов по ${currentTech}, система автоматически переключит на следующую тему
+    КРИТИЧЕСКИ ВАЖНЫЕ ПРАВИЛА:
+    1. ВСЕГДА задавай ТОЛЬКО ОДИН вопрос
+    2. НЕ задавай уточняющих вопросов - сразу переходи к новой теме
+    3. Если ответ правильный → кратко ("Верно") + новый вопрос по ${currentTech}
+    4. Если ответ неполный/неточный → СРАЗУ новый вопрос по ДРУГОЙ теме в ${currentTech}
+    5. НЕ проси примеры, НЕ проси уточнений - просто задавай следующий вопрос
+    6. Держи нейтральный тон без восторгов
 
-    Примеры вопросов по ${currentTech}:
-    ${currentTech === 'React' ? '- Что такое хуки? Назовите основные\n- Объясните Virtual DOM\n- Что такое props drilling?' : ''}
-    ${currentTech === 'JavaScript' ? '- Что такое замыкание?\n- Объясните event loop\n- Разница между var, let, const?' : ''}
-    ${currentTech === 'TypeScript' ? '- Что такое типы в TypeScript?\n- Что такое interface и type?\n- Объясните generic types' : ''}
+    ВОПРОСЫ ПО ${currentTech}:
+    ${currentTech === 'React' ? '- Что такое хуки?\n- Объясните Virtual DOM\n- Для чего useEffect?\n- Что такое props?' : ''}
+    ${currentTech === 'JavaScript' ? '- Что такое замыкание?\n- Разница var и let?\n- Что такое промисы?\n- Объясните event loop' : ''}
+    ${currentTech === 'TypeScript' ? '- Зачем TypeScript?\n- Что такое интерфейсы?\n- Что такое дженерики?\n- Разница type и interface?' : ''}
+    ${currentTech === 'Node.js' ? '- Что такое middleware?\n- Что такое event loop?\n- Что такое streams?\n- Зачем async/await?' : ''}
 
-    Задай ОДИН вопрос по теме ${currentTech}.`;
+    Задай ОДИН короткий вопрос по ${currentTech}. НЕ уточняй ответы - переходи к новым темам.`;
 
   const messages = [
     { role: 'system', text: systemPrompt },
