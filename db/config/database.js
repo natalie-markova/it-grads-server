@@ -1,4 +1,13 @@
-require('dotenv').config();
+const fs = require('fs');
+const path = require('path');
+
+// Load .env.local if it exists, otherwise load .env
+const envLocalPath = path.join(__dirname, '../../.env.local');
+if (fs.existsSync(envLocalPath)) {
+  require('dotenv').config({ path: envLocalPath });
+} else {
+  require('dotenv').config();
+}
 
 module.exports = {
 development: {

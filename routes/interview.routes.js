@@ -191,17 +191,17 @@ router.post('/:sessionId/complete', authMiddleware, async (req, res) => {
         session.messages
     );
 
-    const totalScore = feedback.totalScore;
-    const recommendations = feedback.recommendations;
-
     await session.update({
       status: 'completed',
-      totalScore,
-      recommendations
+      totalScore: feedback.totalScore,
+      recommendations: feedback.recommendations,
+      strengths: feedback.strengths,
+      weaknesses: feedback.weaknesses,
+      detailedFeedback: feedback.detailedFeedback
     });
 
     res.json({
-        totalScore: totalScore,
+        totalScore: feedback.totalScore,
         strengths: feedback.strengths,
         weaknesses: feedback.weaknesses,
         recommendations: feedback.recommendations,

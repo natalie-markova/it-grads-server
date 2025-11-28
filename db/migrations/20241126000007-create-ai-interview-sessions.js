@@ -57,6 +57,20 @@ module.exports = {
         allowNull: true,
         defaultValue: []
       },
+      strengths: {
+        type: Sequelize.ARRAY(Sequelize.TEXT),
+        allowNull: true,
+        defaultValue: []
+      },
+      weaknesses: {
+        type: Sequelize.ARRAY(Sequelize.TEXT),
+        allowNull: true,
+        defaultValue: []
+      },
+      detailedFeedback: {
+        type: Sequelize.TEXT,
+        allowNull: true
+      },
       createdAt: {
         allowNull: false,
         type: Sequelize.DATE,
