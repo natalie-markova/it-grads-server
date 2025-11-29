@@ -3,50 +3,75 @@
 /** @type {import('sequelize-cli').Migration} */
 module.exports = {
   async up(queryInterface, Sequelize) {
-    await Promise.all([
-      queryInterface.addColumn('AIInterviewSessions', 'interviewerPersona', {
+    const sessionTableInfo = await queryInterface.describeTable('AIInterviewSessions');
+    const messageTableInfo = await queryInterface.describeTable('AIInterviewMessages');
+
+    const promises = [];
+
+    if (!sessionTableInfo.interviewerPersona) {
+      promises.push(queryInterface.addColumn('AIInterviewSessions', 'interviewerPersona', {
         type: Sequelize.ENUM('strict_hr', 'friendly_tech', 'direct_ceo'),
         allowNull: true,
-      }),
-      queryInterface.addColumn('AIInterviewSessions', 'position', {
+      }));
+    }
+    if (!sessionTableInfo.position) {
+      promises.push(queryInterface.addColumn('AIInterviewSessions', 'position', {
         type: Sequelize.STRING,
         allowNull: true,
-      }),
-      queryInterface.addColumn('AIInterviewSessions', 'overallScore', {
+      }));
+    }
+    if (!sessionTableInfo.overallScore) {
+      promises.push(queryInterface.addColumn('AIInterviewSessions', 'overallScore', {
         type: Sequelize.INTEGER,
         allowNull: true,
-      }),
-      queryInterface.addColumn('AIInterviewSessions', 'feedback', {
+      }));
+    }
+    if (!sessionTableInfo.feedback) {
+      promises.push(queryInterface.addColumn('AIInterviewSessions', 'feedback', {
         type: Sequelize.TEXT,
         allowNull: true,
-      }),
-      queryInterface.addColumn('AIInterviewSessions', 'strengths', {
+      }));
+    }
+    if (!sessionTableInfo.strengths) {
+      promises.push(queryInterface.addColumn('AIInterviewSessions', 'strengths', {
         type: Sequelize.JSONB,
         allowNull: true,
         defaultValue: [],
-      }),
-      queryInterface.addColumn('AIInterviewSessions', 'weaknesses', {
+      }));
+    }
+    if (!sessionTableInfo.weaknesses) {
+      promises.push(queryInterface.addColumn('AIInterviewSessions', 'weaknesses', {
         type: Sequelize.JSONB,
         allowNull: true,
         defaultValue: [],
-      }),
-      queryInterface.addColumn('AIInterviewSessions', 'duration', {
+      }));
+    }
+    if (!sessionTableInfo.duration) {
+      promises.push(queryInterface.addColumn('AIInterviewSessions', 'duration', {
         type: Sequelize.INTEGER,
         allowNull: true,
-      }),
-      queryInterface.addColumn('AIInterviewSessions', 'completedAt', {
+      }));
+    }
+    if (!sessionTableInfo.completedAt) {
+      promises.push(queryInterface.addColumn('AIInterviewSessions', 'completedAt', {
         type: Sequelize.DATE,
         allowNull: true,
-      }),
-      queryInterface.addColumn('AIInterviewMessages', 'score', {
+      }));
+    }
+    if (!messageTableInfo.score) {
+      promises.push(queryInterface.addColumn('AIInterviewMessages', 'score', {
         type: Sequelize.INTEGER,
         allowNull: true,
-      }),
-      queryInterface.addColumn('AIInterviewMessages', 'evaluation', {
+      }));
+    }
+    if (!messageTableInfo.evaluation) {
+      promises.push(queryInterface.addColumn('AIInterviewMessages', 'evaluation', {
         type: Sequelize.TEXT,
         allowNull: true,
-      }),
-    ]);
+      }));
+    }
+
+    await Promise.all(promises);
   },
 
   async down(queryInterface, Sequelize) {
