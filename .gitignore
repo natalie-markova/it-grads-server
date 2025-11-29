@@ -1,4 +1,11 @@
+# Environment files
 .env
 .env.local
 .env.production
+.env.development
+
+# Allow example files
+!.env.example
+!.env.*.example
+
 node_modules/
