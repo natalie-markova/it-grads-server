@@ -59,19 +59,19 @@ module.exports = (sequelize, DataTypes) => {
       allowNull: true
     },
     recommendations: {
-      type: DataTypes.ARRAY(DataTypes.TEXT),
+      type: DataTypes.JSONB,
       allowNull: true,
-      defaultValue: []
+      defaultValue: null
     },
     strengths: {
-      type: DataTypes.ARRAY(DataTypes.TEXT),
+      type: DataTypes.JSONB,
       allowNull: true,
-      defaultValue: []
+      defaultValue: null
     },
     weaknesses: {
-      type: DataTypes.ARRAY(DataTypes.TEXT),
+      type: DataTypes.JSONB,
       allowNull: true,
-      defaultValue: []
+      defaultValue: null
     },
     detailedFeedback: {
       type: DataTypes.TEXT,
