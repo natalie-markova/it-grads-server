@@ -21,6 +21,14 @@ module.exports = function authMiddleware(req, res, next) {
     return next();
   } catch (error) {
     console.error('Token verification error:', error.message);
+
+    // Provide specific error message for expired tokens
+    if (error.name === 'TokenExpiredError') {
+      return res
+        .status(401)
+        .json({ message: 'Token expired', code: 'TOKEN_EXPIRED' });
+    }
+
     return res
       .status(401)
       .json({ message: 'Invalid token' });

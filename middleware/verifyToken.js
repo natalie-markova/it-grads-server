@@ -14,6 +14,10 @@ module.exports = function verifyToken(req, res, next) {
     req.user = { id: decoded.userId };
     return next();
   } catch (error) {
+    // Provide specific error message for expired tokens
+    if (error.name === 'TokenExpiredError') {
+      return res.status(401).json({ message: 'Токен истёк', code: 'TOKEN_EXPIRED' });
+    }
     return res.status(401).json({ message: 'Неверный токен' });
   }
 };
