@@ -20,6 +20,7 @@ const morgan       = require('morgan');
 const cookieParser = require('cookie-parser');
 const cors = require('cors');
 const db = require('./db/models');
+const redisClient = require('./config/redis');
 const authRoutes = require('./routes/auth.routes');
 const userRoutes = require('./routes/user.routes');
 const cookieRoutes = require('./routes/cookie.routes');

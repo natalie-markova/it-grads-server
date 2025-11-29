@@ -2,6 +2,7 @@ const express = require('express');
 const authMiddleware = require('../middleware/authMiddleware');
 const db = require('../db/models');
 const checkUserIdMatches = require('../middleware/checkUserIdMatches');
+const { cacheMiddleware, invalidateCache } = require('../middleware/cacheMiddleware');
 const { User } = db;
 
 const router = express.Router();
@@ -17,7 +18,7 @@ const getUserProfile = async (userId) => {
 };
 
 // Профиль текущего пользователя
-router.get('/profile', authMiddleware, async (req, res) => {
+router.get('/profile', authMiddleware, cacheMiddleware(600), async (req, res) => {
   try {
     const user = await getUserProfile(req.userId);
     if (!user) {
@@ -31,7 +32,7 @@ router.get('/profile', authMiddleware, async (req, res) => {
 });
 
 // Публичный профиль работодателя
-router.get('/employer/:id', async (req, res) => {
+router.get('/employer/:id', cacheMiddleware(600), async (req, res) => {
   try {
     const employerId = Number(req.params.id);
     if (isNaN(employerId)) {
@@ -61,7 +62,7 @@ router.get('/employer/:id', async (req, res) => {
 });
 
 // Просмотр любого профиля (с проверкой прав)
-router.get('/:id', authMiddleware, checkUserIdMatches, async (req, res) => {
+router.get('/:id', authMiddleware, checkUserIdMatches, cacheMiddleware(600), async (req, res) => {
   try {
     const requestedUserId = Number(req.params.id);
     if (isNaN(requestedUserId)) {
@@ -91,6 +92,10 @@ router.put('/profile', authMiddleware, async (req, res) => {
     if (!user) return res.status(404).json({ message: 'User not found' });
 
     await user.update(req.body);
+
+    // Инвалидируем кэш профиля при обновлении
+    await invalidateCache(`cache:/api/users/*`);
+
     res.json(await getUserProfile(req.userId));
   } catch (e) {
     res.status(500).json({ message: 'Error updating profile' });

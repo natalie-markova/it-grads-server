@@ -3,9 +3,10 @@ const router = express.Router();
 const db = require('../db/models');
 const { Vacancy, User } = db;
 const verifyToken = require('../middleware/verifyToken');
+const { cacheMiddleware, invalidateCache } = require('../middleware/cacheMiddleware');
 
 // GET /api/vacancies - Получить все активные вакансии
-router.get('/', async (req, res) => {
+router.get('/', cacheMiddleware(300), async (req, res) => {
   try {
     const { location, minSalary, maxSalary, employmentType, level, skills, search } = req.query;
 
@@ -68,7 +69,7 @@ router.get('/', async (req, res) => {
 });
 
 // GET /api/vacancies/recommended/:userId - Получить рекомендованные вакансии на основе навыков
-router.get('/recommended/:userId', async (req, res) => {
+router.get('/recommended/:userId', cacheMiddleware(600), async (req, res) => {
   try {
     const { Resume } = db;
     const userId = parseInt(req.params.userId);
@@ -140,7 +141,7 @@ router.get('/recommended/:userId', async (req, res) => {
 });
 
 // GET /api/vacancies/:id - Получить конкретную вакансию
-router.get('/:id', async (req, res) => {
+router.get('/:id', cacheMiddleware(600), async (req, res) => {
   try {
     const vacancy = await Vacancy.findByPk(req.params.id, {
       include: [{
@@ -162,7 +163,7 @@ router.get('/:id', async (req, res) => {
 });
 
 // GET /api/vacancies/employer/:employerId - Получить вакансии работодателя
-router.get('/employer/:employerId', async (req, res) => {
+router.get('/employer/:employerId', cacheMiddleware(300), async (req, res) => {
   try {
     const vacancies = await Vacancy.findAll({
       where: { employerId: req.params.employerId },
@@ -191,6 +192,9 @@ router.post('/', verifyToken, async (req, res) => {
       employmentType,
       isActive: true
     });
+
+    // Инвалидируем кэш вакансий при создании
+    await invalidateCache(`cache:/api/vacancies*`);
 
     res.status(201).json(vacancy);
   } catch (error) {
@@ -224,6 +228,9 @@ router.put('/:id', verifyToken, async (req, res) => {
       isActive
     });
 
+    // Инвалидируем кэш вакансий при обновлении
+    await invalidateCache(`cache:/api/vacancies*`);
+
     res.json(vacancy);
   } catch (error) {
     console.error('Error updating vacancy:', error);
@@ -245,6 +252,10 @@ router.delete('/:id', verifyToken, async (req, res) => {
     }
 
     await vacancy.destroy();
+
+    // Инвалидируем кэш вакансий при удалении
+    await invalidateCache(`cache:/api/vacancies*`);
+
     res.json({ message: 'Вакансия удалена' });
   } catch (error) {
     console.error('Error deleting vacancy:', error);

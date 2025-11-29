@@ -1,9 +1,10 @@
 const express = require('express');
 const router = express.Router();
 const { Roadmap } = require('../db/models');
+const { cacheMiddleware } = require('../middleware/cacheMiddleware');
 
 // GET /api/roadmaps - Get all roadmaps
-router.get('/', async (req, res) => {
+router.get('/', cacheMiddleware(900), async (req, res) => {
   try {
     const { category, difficulty } = req.query;
 
@@ -27,7 +28,7 @@ router.get('/', async (req, res) => {
 });
 
 // GET /api/roadmaps/:slug - Get single roadmap by slug
-router.get('/:slug', async (req, res) => {
+router.get('/:slug', cacheMiddleware(900), async (req, res) => {
   try {
     const { slug } = req.params;
 
@@ -47,7 +48,7 @@ router.get('/:slug', async (req, res) => {
 });
 
 // GET /api/roadmaps/categories/list - Get all categories
-router.get('/categories/list', async (req, res) => {
+router.get('/categories/list', cacheMiddleware(900), async (req, res) => {
   try {
     const categories = await Roadmap.findAll({
       attributes: ['category'],
