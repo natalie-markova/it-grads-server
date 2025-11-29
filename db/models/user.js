@@ -67,6 +67,30 @@ module.exports = (sequelize, DataTypes) => {
     },
     avatar: {
       type: DataTypes.STRING
+    },
+    companyName: {
+      type: DataTypes.STRING,
+      allowNull: true
+    },
+    companyDescription: {
+      type: DataTypes.TEXT,
+      allowNull: true
+    },
+    companyWebsite: {
+      type: DataTypes.STRING,
+      allowNull: true
+    },
+    companyAddress: {
+      type: DataTypes.STRING,
+      allowNull: true
+    },
+    companySize: {
+      type: DataTypes.STRING,
+      allowNull: true
+    },
+    industry: {
+      type: DataTypes.STRING,
+      allowNull: true
     }
   }, {
     sequelize,

@@ -9,7 +9,10 @@ const router = express.Router();
 // Единый формат ответа для профиля
 const getUserProfile = async (userId) => {
   return await User.findByPk(userId, {
-    attributes: ['id', 'username', 'email', 'role', 'phone', 'avatar', 'createdAt']
+    attributes: [
+      'id', 'username', 'email', 'role', 'phone', 'avatar', 'createdAt',
+      'companyName', 'companyDescription', 'companyWebsite', 'companyAddress', 'companySize', 'industry'
+    ]
   });
 };
 
@@ -23,6 +26,36 @@ router.get('/profile', authMiddleware, async (req, res) => {
     res.json(user);
   } catch (e) {
     console.error('Profile error:', e);
+    res.status(500).json({ message: 'Ошибка сервера' });
+  }
+});
+
+// Публичный профиль работодателя
+router.get('/employer/:id', async (req, res) => {
+  try {
+    const employerId = Number(req.params.id);
+    if (isNaN(employerId)) {
+      return res.status(400).json({ message: 'Неверный id работодателя' });
+    }
+
+    const employer = await User.findOne({
+      where: {
+        id: employerId,
+        role: 'employer'
+      },
+      attributes: [
+        'id', 'username', 'email', 'phone', 'avatar', 'createdAt',
+        'companyName', 'companyDescription', 'companyWebsite', 'companyAddress', 'companySize', 'industry'
+      ]
+    });
+
+    if (!employer) {
+      return res.status(404).json({ message: 'Работодатель не найден' });
+    }
+
+    res.json(employer);
+  } catch (e) {
+    console.error('Employer profile error:', e);
     res.status(500).json({ message: 'Ошибка сервера' });
   }
 });
