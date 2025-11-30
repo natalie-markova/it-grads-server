@@ -263,4 +263,31 @@ router.delete('/:id', verifyToken, async (req, res) => {
   }
 });
 
+// PATCH /api/vacancies/:id/toggle - Переключить статус вакансии
+router.patch('/:id/toggle', verifyToken, async (req, res) => {
+  try {
+    const vacancy = await Vacancy.findByPk(req.params.id);
+
+    if (!vacancy) {
+      return res.status(404).json({ message: 'Вакансия не найдена' });
+    }
+
+    if (vacancy.employerId !== req.user.id) {
+      return res.status(403).json({ message: 'Нет доступа' });
+    }
+
+    await vacancy.update({
+      isActive: !vacancy.isActive
+    });
+
+    // Инвалидируем кэш вакансий при обновлении
+    await invalidateCache(`cache:/api/vacancies*`);
+
+    res.json(vacancy);
+  } catch (error) {
+    console.error('Error toggling vacancy status:', error);
+    res.status(500).json({ message: 'Ошибка при изменении статуса вакансии' });
+  }
+});
+
 module.exports = router;
