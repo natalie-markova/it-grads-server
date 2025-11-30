@@ -3,6 +3,7 @@ const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
 const generate = require('../utils/generateToken');
 const { User } = require('../db/models');
+const verifyToken = require('../middleware/verifyToken');
 
 const router = express.Router();
 
@@ -203,6 +204,47 @@ router.post('/registration', async (req, res) => {
   } catch (e) {
     console.error('registration:', e);
     res.status(500).json({ error: 'Произошла ошибка при регистрации' });
+  }
+});
+
+// PUT /api/auth/change-password - Смена пароля
+router.put('/change-password', verifyToken, async (req, res) => {
+  try {
+    const { currentPassword, newPassword } = req.body;
+
+    // Валидация
+    if (!currentPassword || !newPassword) {
+      return res.status(400).json({ error: 'Текущий пароль и новый пароль обязательны' });
+    }
+
+    if (newPassword.length < 8) {
+      return res.status(400).json({ error: 'Новый пароль должен быть не менее 8 символов' });
+    }
+
+    // Получаем пользователя
+    const user = await User.findByPk(req.user.id);
+
+    if (!user) {
+      return res.status(404).json({ error: 'Пользователь не найден' });
+    }
+
+    // Проверяем текущий пароль
+    const isCurrentPasswordValid = await bcrypt.compare(currentPassword, user.password);
+
+    if (!isCurrentPasswordValid) {
+      return res.status(401).json({ error: 'Неверный текущий пароль' });
+    }
+
+    // Хешируем новый пароль
+    const hashedPassword = await bcrypt.hash(newPassword, 10);
+
+    // Обновляем пароль
+    await user.update({ password: hashedPassword });
+
+    res.json({ message: 'Пароль успешно изменен' });
+  } catch (e) {
+    console.error('change-password:', e);
+    res.status(500).json({ error: 'Произошла ошибка при смене пароля' });
   }
 });
 

@@ -29,6 +29,10 @@ const roadmapRoutes = require('./routes/roadmap.routes');
 const vacancyRoutes = require('./routes/vacancy.routes');
 const resumeRoutes = require('./routes/resume.routes');
 const skillsRoutes = require('./routes/skills.routes');
+const applicationRoutes = require('./routes/application.routes');
+const favoriteRoutes = require('./routes/favorite.routes');
+const reviewRoutes = require('./routes/review.routes');
+const chatRoutes = require('./routes/chat.routes');
 
 
 
@@ -52,6 +56,10 @@ if (fs.existsSync(path.join(sslPath, 'cert.pem')) && fs.existsSync(path.join(ssl
 app.use(express.json());
 app.use(cookieParser());
 app.use(morgan('dev'));
+
+// Раздача статических файлов (загруженные аватары)
+app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
+
 app.use(cors({
   origin: [
     'http://localhost:3000',
@@ -85,6 +93,10 @@ app.use('/api/roadmaps', roadmapRoutes);
 app.use('/api/vacancies', vacancyRoutes);
 app.use('/api/resumes', resumeRoutes);
 app.use('/api/skills', skillsRoutes);
+app.use('/api/applications', applicationRoutes);
+app.use('/api/favorites', favoriteRoutes);
+app.use('/api/reviews', reviewRoutes);
+app.use('/api/chats', chatRoutes);
 
 
 (async () => {

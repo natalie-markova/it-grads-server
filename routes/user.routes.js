@@ -3,6 +3,7 @@ const authMiddleware = require('../middleware/authMiddleware');
 const db = require('../db/models');
 const checkUserIdMatches = require('../middleware/checkUserIdMatches');
 const { cacheMiddleware, invalidateCache } = require('../middleware/cacheMiddleware');
+const { uploadAvatar } = require('../middleware/upload');
 const { User } = db;
 
 const router = express.Router();
@@ -12,7 +13,11 @@ const getUserProfile = async (userId) => {
   return await User.findByPk(userId, {
     attributes: [
       'id', 'username', 'email', 'role', 'phone', 'avatar', 'createdAt',
-      'companyName', 'companyDescription', 'companyWebsite', 'companyAddress', 'companySize', 'industry'
+      // Employer fields
+      'companyName', 'companyDescription', 'companyWebsite', 'companyAddress', 'companySize', 'industry',
+      // Graduate profile fields
+      'photo', 'lastName', 'firstName', 'middleName', 'birthDate', 'city',
+      'education', 'experience', 'about', 'github', 'linkedin', 'portfolio', 'skills', 'projects'
     ]
   });
 };
@@ -99,6 +104,55 @@ router.put('/profile', authMiddleware, async (req, res) => {
     res.json(await getUserProfile(req.userId));
   } catch (e) {
     res.status(500).json({ message: 'Error updating profile' });
+  }
+});
+
+// POST /api/user/upload-avatar - Загрузка аватара
+router.post('/upload-avatar', authMiddleware, uploadAvatar.single('avatar'), async (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ error: 'Файл не был загружен' });
+    }
+
+    const user = await User.findByPk(req.userId);
+    if (!user) {
+      return res.status(404).json({ error: 'Пользователь не найден' });
+    }
+
+    // Сохраняем путь к файлу в БД
+    const avatarUrl = `/uploads/avatars/${req.file.filename}`;
+    await user.update({ avatar: avatarUrl });
+
+    // Инвалидируем кэш профиля
+    await invalidateCache(`cache:/api/users/*`);
+
+    res.json({
+      message: 'Аватар успешно загружен',
+      avatar: avatarUrl
+    });
+  } catch (error) {
+    console.error('Upload avatar error:', error);
+    res.status(500).json({ error: 'Ошибка при загрузке аватара' });
+  }
+});
+
+// DELETE /api/user/profile - Удаление профиля
+router.delete('/profile', authMiddleware, async (req, res) => {
+  try {
+    const user = await User.findByPk(req.userId);
+    if (!user) {
+      return res.status(404).json({ error: 'Пользователь не найден' });
+    }
+
+    await user.destroy();
+
+    // Инвалидируем кэш
+    await invalidateCache(`cache:/api/users/*`);
+
+    res.json({ message: 'Профиль успешно удален' });
+  } catch (error) {
+    console.error('Delete profile error:', error);
+    res.status(500).json({ error: 'Ошибка при удалении профиля' });
   }
 });
 

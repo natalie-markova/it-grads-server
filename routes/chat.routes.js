@@ -257,4 +257,64 @@ router.put('/:id/read', verifyToken, async (req, res) => {
   }
 });
 
+// GET /api/chats/unread/count - Получить общее количество непрочитанных сообщений
+router.get('/unread/count', verifyToken, async (req, res) => {
+  try {
+    const userId = req.user.id;
+
+    // Получаем все чаты пользователя
+    const chats = await Chat.findAll({
+      where: {
+        [db.Sequelize.Op.or]: [
+          { user1Id: userId },
+          { user2Id: userId }
+        ]
+      },
+      attributes: ['id']
+    });
+
+    const chatIds = chats.map(chat => chat.id);
+
+    // Подсчитываем все непрочитанные сообщения
+    const unreadCount = await Message.count({
+      where: {
+        chatId: { [db.Sequelize.Op.in]: chatIds },
+        senderId: { [db.Sequelize.Op.ne]: userId },
+        isRead: false
+      }
+    });
+
+    // Получаем последние непрочитанные сообщения с информацией о чатах
+    const unreadMessages = await Message.findAll({
+      where: {
+        chatId: { [db.Sequelize.Op.in]: chatIds },
+        senderId: { [db.Sequelize.Op.ne]: userId },
+        isRead: false
+      },
+      include: [
+        {
+          model: User,
+          as: 'sender',
+          attributes: ['id', 'username', 'avatar']
+        },
+        {
+          model: Chat,
+          as: 'chat',
+          attributes: ['id', 'user1Id', 'user2Id']
+        }
+      ],
+      order: [['createdAt', 'DESC']],
+      limit: 10
+    });
+
+    res.json({
+      unreadCount,
+      unreadMessages
+    });
+  } catch (error) {
+    console.error('Error getting unread count:', error);
+    res.status(500).json({ message: 'Ошибка при получении непрочитанных сообщений' });
+  }
+});
+
 module.exports = router;
