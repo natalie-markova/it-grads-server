@@ -3,27 +3,36 @@
 /** @type {import('sequelize-cli').Migration} */
 module.exports = {
   async up (queryInterface, Sequelize) {
-    await queryInterface.addColumn('AIInterviewSessions', 'strengths', {
-      type: Sequelize.ARRAY(Sequelize.TEXT),
-      allowNull: true,
-      defaultValue: []
-    });
+    const tableInfo = await queryInterface.describeTable('AIInterviewSessions');
 
-    await queryInterface.addColumn('AIInterviewSessions', 'weaknesses', {
-      type: Sequelize.ARRAY(Sequelize.TEXT),
-      allowNull: true,
-      defaultValue: []
-    });
+    if (!tableInfo.strengths) {
+      await queryInterface.addColumn('AIInterviewSessions', 'strengths', {
+        type: Sequelize.ARRAY(Sequelize.TEXT),
+        allowNull: true,
+        defaultValue: []
+      });
+    }
 
-    await queryInterface.addColumn('AIInterviewSessions', 'detailedFeedback', {
-      type: Sequelize.TEXT,
-      allowNull: true
-    });
+    if (!tableInfo.weaknesses) {
+      await queryInterface.addColumn('AIInterviewSessions', 'weaknesses', {
+        type: Sequelize.ARRAY(Sequelize.TEXT),
+        allowNull: true,
+        defaultValue: []
+      });
+    }
+
+    if (!tableInfo.detailedFeedback) {
+      await queryInterface.addColumn('AIInterviewSessions', 'detailedFeedback', {
+        type: Sequelize.TEXT,
+        allowNull: true
+      });
+    }
   },
 
   async down (queryInterface, Sequelize) {
-    await queryInterface.removeColumn('AIInterviewSessions', 'strengths');
-    await queryInterface.removeColumn('AIInterviewSessions', 'weaknesses');
-    await queryInterface.removeColumn('AIInterviewSessions', 'detailedFeedback');
+    const tableInfo = await queryInterface.describeTable('AIInterviewSessions');
+    if (tableInfo.strengths) await queryInterface.removeColumn('AIInterviewSessions', 'strengths');
+    if (tableInfo.weaknesses) await queryInterface.removeColumn('AIInterviewSessions', 'weaknesses');
+    if (tableInfo.detailedFeedback) await queryInterface.removeColumn('AIInterviewSessions', 'detailedFeedback');
   }
 };

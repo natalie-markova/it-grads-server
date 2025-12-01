@@ -3,77 +3,107 @@
 /** @type {import('sequelize-cli').Migration} */
 module.exports = {
   async up(queryInterface, Sequelize) {
-    await queryInterface.addColumn('Users', 'photo', {
-      type: Sequelize.STRING,
-      allowNull: true
-    });
+    const tableInfo = await queryInterface.describeTable('Users');
 
-    await queryInterface.addColumn('Users', 'lastName', {
-      type: Sequelize.STRING,
-      allowNull: true
-    });
+    if (!tableInfo.photo) {
+      await queryInterface.addColumn('Users', 'photo', {
+        type: Sequelize.STRING,
+        allowNull: true
+      });
+    }
 
-    await queryInterface.addColumn('Users', 'firstName', {
-      type: Sequelize.STRING,
-      allowNull: true
-    });
+    if (!tableInfo.lastName) {
+      await queryInterface.addColumn('Users', 'lastName', {
+        type: Sequelize.STRING,
+        allowNull: true
+      });
+    }
 
-    await queryInterface.addColumn('Users', 'middleName', {
-      type: Sequelize.STRING,
-      allowNull: true
-    });
+    if (!tableInfo.firstName) {
+      await queryInterface.addColumn('Users', 'firstName', {
+        type: Sequelize.STRING,
+        allowNull: true
+      });
+    }
 
-    await queryInterface.addColumn('Users', 'birthDate', {
-      type: Sequelize.STRING,
-      allowNull: true
-    });
+    if (!tableInfo.middleName) {
+      await queryInterface.addColumn('Users', 'middleName', {
+        type: Sequelize.STRING,
+        allowNull: true
+      });
+    }
 
-    await queryInterface.addColumn('Users', 'city', {
-      type: Sequelize.STRING,
-      allowNull: true
-    });
+    if (!tableInfo.birthDate) {
+      await queryInterface.addColumn('Users', 'birthDate', {
+        type: Sequelize.STRING,
+        allowNull: true
+      });
+    }
 
-    await queryInterface.addColumn('Users', 'education', {
-      type: Sequelize.TEXT,
-      allowNull: true
-    });
+    if (!tableInfo.city) {
+      await queryInterface.addColumn('Users', 'city', {
+        type: Sequelize.STRING,
+        allowNull: true
+      });
+    }
 
-    await queryInterface.addColumn('Users', 'experience', {
-      type: Sequelize.TEXT,
-      allowNull: true
-    });
+    if (!tableInfo.education) {
+      await queryInterface.addColumn('Users', 'education', {
+        type: Sequelize.TEXT,
+        allowNull: true
+      });
+    }
 
-    await queryInterface.addColumn('Users', 'about', {
-      type: Sequelize.TEXT,
-      allowNull: true
-    });
+    if (!tableInfo.experience) {
+      await queryInterface.addColumn('Users', 'experience', {
+        type: Sequelize.TEXT,
+        allowNull: true
+      });
+    }
 
-    await queryInterface.addColumn('Users', 'github', {
-      type: Sequelize.STRING,
-      allowNull: true
-    });
+    if (!tableInfo.about) {
+      await queryInterface.addColumn('Users', 'about', {
+        type: Sequelize.TEXT,
+        allowNull: true
+      });
+    }
 
-    await queryInterface.addColumn('Users', 'linkedin', {
-      type: Sequelize.STRING,
-      allowNull: true
-    });
+    if (!tableInfo.github) {
+      await queryInterface.addColumn('Users', 'github', {
+        type: Sequelize.STRING,
+        allowNull: true
+      });
+    }
 
-    await queryInterface.addColumn('Users', 'portfolio', {
-      type: Sequelize.STRING,
-      allowNull: true
-    });
+    if (!tableInfo.linkedin) {
+      await queryInterface.addColumn('Users', 'linkedin', {
+        type: Sequelize.STRING,
+        allowNull: true
+      });
+    }
 
-    await queryInterface.addColumn('Users', 'skills', {
-      type: Sequelize.JSON,
-      allowNull: true,
-      defaultValue: []
-    });
+    if (!tableInfo.portfolio) {
+      await queryInterface.addColumn('Users', 'portfolio', {
+        type: Sequelize.STRING,
+        allowNull: true
+      });
+    }
 
-    await queryInterface.addColumn('Users', 'projects', {
-      type: Sequelize.JSON,
-      allowNull: true,
-      defaultValue: []
-    });
+    if (!tableInfo.skills) {
+      await queryInterface.addColumn('Users', 'skills', {
+        type: Sequelize.JSON,
+        allowNull: true,
+        defaultValue: []
+      });
+    }
+
+    if (!tableInfo.projects) {
+      await queryInterface.addColumn('Users', 'projects', {
+        type: Sequelize.JSON,
+        allowNull: true,
+        defaultValue: []
+      });
+    }
   },
 
   async down(queryInterface, Sequelize) {

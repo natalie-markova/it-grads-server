@@ -3,6 +3,12 @@
 /** @type {import('sequelize-cli').Migration} */
 module.exports = {
   async up(queryInterface, Sequelize) {
+    // Check if table already exists
+    const tables = await queryInterface.showAllTables();
+    if (tables.includes('Reviews')) {
+      return;
+    }
+
     await queryInterface.createTable('Reviews', {
       id: {
         allowNull: false,
