@@ -121,18 +121,59 @@ router.post('/upload-avatar', authMiddleware, uploadAvatar.single('avatar'), asy
 
     // Сохраняем путь к файлу в БД
     const avatarUrl = `/uploads/avatars/${req.file.filename}`;
-    await user.update({ avatar: avatarUrl });
+    const updateData = { avatar: avatarUrl };
+    
+    // Если это выпускник, также обновляем поле photo
+    if (user.role === 'graduate') {
+      updateData.photo = avatarUrl;
+    }
+    
+    await user.update(updateData);
 
     // Инвалидируем кэш профиля
     await invalidateCache(`cache:/api/users/*`);
 
     res.json({
       message: 'Аватар успешно загружен',
-      avatar: avatarUrl
+      avatar: avatarUrl,
+      photo: user.role === 'graduate' ? avatarUrl : undefined
     });
   } catch (error) {
     console.error('Upload avatar error:', error);
     res.status(500).json({ error: 'Ошибка при загрузке аватара' });
+  }
+});
+
+// POST /api/user/upload-photo - Загрузка фото для выпускника
+router.post('/upload-photo', authMiddleware, uploadAvatar.single('photo'), async (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ error: 'Файл не был загружен' });
+    }
+
+    const user = await User.findByPk(req.userId);
+    if (!user) {
+      return res.status(404).json({ error: 'Пользователь не найден' });
+    }
+
+    if (user.role !== 'graduate') {
+      return res.status(403).json({ error: 'Доступно только выпускникам' });
+    }
+
+    // Сохраняем путь к файлу в БД
+    const photoUrl = `/uploads/avatars/${req.file.filename}`;
+    await user.update({ photo: photoUrl, avatar: photoUrl });
+
+    // Инвалидируем кэш профиля
+    await invalidateCache(`cache:/api/users/*`);
+
+    res.json({
+      message: 'Фото успешно загружено',
+      photo: photoUrl
+    });
+  } catch (error) {
+    console.error('Upload photo error:', error);
+    res.status(500).json({ error: 'Ошибка при загрузке фото' });
   }
 });
 
