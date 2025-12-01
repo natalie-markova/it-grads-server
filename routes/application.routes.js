@@ -109,17 +109,46 @@ router.get('/vacancy/:vacancyId', verifyToken, async (req, res) => {
 // GET /api/applications/employer/all - Получить все отклики на вакансии работодателя
 router.get('/employer/all', verifyToken, async (req, res) => {
   try {
+    console.log('GET /api/applications/employer/all - User:', req.user.id, 'Role:', req.user.role);
+    
     if (req.user.role !== 'employer') {
+      console.log('Access denied - user is not employer');
       return res.status(403).json({ error: 'Доступно только работодателям' });
     }
 
+    // Сначала получаем все вакансии работодателя (включая неактивные, так как отклики могут быть на любые)
+    const employerVacancies = await Vacancy.findAll({
+      where: { employerId: req.user.id },
+      attributes: ['id', 'title', 'isActive']
+    });
+
+    console.log('Employer vacancies found:', employerVacancies.length);
+    console.log('Vacancies details:', employerVacancies.map(v => ({ id: v.id, title: v.title, isActive: v.isActive })));
+    const vacancyIds = employerVacancies.map(v => v.id);
+    console.log('Vacancy IDs:', vacancyIds);
+
+    if (vacancyIds.length === 0) {
+      console.log('No vacancies found for employer, returning empty array');
+      return res.json([]);
+    }
+
+    // Затем получаем все отклики на эти вакансии
     const applications = await Application.findAll({
+      where: {
+        vacancyId: {
+          [db.Sequelize.Op.in]: vacancyIds
+        }
+      },
       include: [
         {
           model: Vacancy,
           as: 'vacancy',
-          where: { employerId: req.user.id },
-          attributes: ['id', 'title', 'companyName']
+          attributes: ['id', 'title', 'companyName', 'isActive'],
+          include: [{
+            model: User,
+            as: 'employer',
+            attributes: ['id', 'username', 'email', 'companyName', 'avatar']
+          }]
         },
         {
           model: User,
@@ -136,7 +165,43 @@ router.get('/employer/all', verifyToken, async (req, res) => {
       order: [['createdAt', 'DESC']]
     });
 
-    res.json(applications);
+    console.log('Applications found:', applications.length);
+    console.log('Applications details:', applications.map(app => ({
+      id: app.id,
+      vacancyId: app.vacancyId,
+      userId: app.userId,
+      status: app.status,
+      vacancyTitle: app.vacancy?.title,
+      userName: app.user?.username
+    })));
+    
+    // Проверяем, что данные правильно сериализуются
+    const serializedApplications = applications.map(app => ({
+      id: app.id,
+      vacancyId: app.vacancyId,
+      userId: app.userId,
+      status: app.status,
+      coverLetter: app.coverLetter,
+      createdAt: app.createdAt,
+      vacancy: app.vacancy ? {
+        id: app.vacancy.id,
+        title: app.vacancy.title,
+        companyName: app.vacancy.companyName,
+        isActive: app.vacancy.isActive,
+        employer: app.vacancy.employer
+      } : null,
+      user: app.user ? {
+        id: app.user.id,
+        username: app.user.username,
+        email: app.user.email,
+        phone: app.user.phone,
+        avatar: app.user.avatar,
+        resumes: app.user.resumes
+      } : null
+    }));
+    
+    console.log('Serialized applications:', JSON.stringify(serializedApplications, null, 2));
+    res.json(serializedApplications);
   } catch (error) {
     console.error('Error fetching employer applications:', error);
     res.status(500).json({ error: 'Ошибка при получении откликов' });
