@@ -153,7 +153,7 @@ module.exports = {
         category: 'language',
         description: 'Освойте самый популярный язык программирования для веб-разработки.',
         icon: '📜',
-        color: '#F7DF1E',
+        color: '#D4B800',
         difficulty: 'beginner',
         estimatedMonths: 4,
         prerequisites: JSON.stringify([
@@ -249,7 +249,7 @@ module.exports = {
         category: 'framework',
         description: 'Освойте самую популярную библиотеку для создания пользовательских интерфейсов.',
         icon: '⚛️',
-        color: '#61DAFB',
+        color: '#4AB8D9',
         difficulty: 'intermediate',
         estimatedMonths: 4,
         prerequisites: JSON.stringify([
@@ -298,7 +298,7 @@ module.exports = {
         category: 'role',
         description: 'Научитесь автоматизировать развертывание и поддержку приложений в продакшене.',
         icon: '🔧',
-        color: '#FF6B6B',
+        color: '#D94A4A',
         difficulty: 'advanced',
         estimatedMonths: 10,
         prerequisites: JSON.stringify([
@@ -348,7 +348,7 @@ module.exports = {
         category: 'role',
         description: 'Анализируйте данные и создавайте модели машинного обучения.',
         icon: '📊',
-        color: '#FF9500',
+        color: '#D97B00',
         difficulty: 'advanced',
         estimatedMonths: 12,
         prerequisites: JSON.stringify([

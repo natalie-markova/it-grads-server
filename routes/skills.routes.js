@@ -19,17 +19,18 @@ router.post('/radar', authMiddleware, async (req, res) => {
       return res.status(403).json({ error: 'Access denied' });
     }
 
-    // Фильтруем навыки с уровнем > 0
-    const activeSkills = skills
-      .filter(skill => skill.level > 0)
-      .map(skill => skill.skill);
+    // Сохраняем полную структуру навыков с уровнями (для радара)
+    const skillsWithLevels = skills.filter(skill => skill.level > 0);
+
+    // Для обратной совместимости также сохраняем только названия навыков
+    const skillNames = skillsWithLevels.map(skill => skill.skill);
 
     // Ищем существующее резюме пользователя
     let resume = await Resume.findOne({ where: { userId } });
 
     const updateData = {
-      skills: activeSkills,
-      skillsArray: activeSkills,
+      skills: skillsWithLevels,  // Полная структура с уровнями
+      skillsArray: skillNames,   // Только названия для совместимости
       radarImage: radarImage || null
     };
 
@@ -41,8 +42,8 @@ router.post('/radar', authMiddleware, async (req, res) => {
       resume = await Resume.create({
         userId,
         title: 'Мое резюме',
-        skills: updateData.skills,
-        skillsArray: activeSkills,
+        skills: skillsWithLevels,
+        skillsArray: skillNames,
         radarImage: radarImage || null,
         description: '',
         isActive: true
@@ -53,9 +54,7 @@ router.post('/radar', authMiddleware, async (req, res) => {
       message: 'Skills saved successfully',
       resume: {
         id: resume.id,
-        skills: Array.isArray(resume.skills)
-          ? resume.skills
-          : (Array.isArray(resume.skillsArray) ? resume.skillsArray : []),
+        skills: resume.skills,
         radarImage: resume.radarImage
       }
     });
@@ -78,22 +77,34 @@ router.get('/radar/:userId', authMiddleware, async (req, res) => {
     const resume = await Resume.findOne({ where: { userId } });
 
     if (!resume) {
-      return res.json({ skills: [] });
+      return res.json({ skills: [], skillsWithLevels: [] });
     }
 
+    // Проверяем формат данных skills
+    const skills = resume.skills;
+
+    // Если skills - массив объектов с category, skill, level - это новый формат
+    if (Array.isArray(skills) && skills.length > 0 && typeof skills[0] === 'object' && skills[0].level !== undefined) {
+      return res.json({
+        skills: skills,  // Полная структура с уровнями
+        skillsWithLevels: skills
+      });
+    }
+
+    // Старый формат - массив строк
     let storedSkills = [];
-    if (Array.isArray(resume.skills)) {
-      storedSkills = resume.skills;
+    if (Array.isArray(skills)) {
+      storedSkills = skills;
     } else if (Array.isArray(resume.skillsArray)) {
       storedSkills = resume.skillsArray;
-    } else if (typeof resume.skills === 'string') {
-      storedSkills = resume.skills
+    } else if (typeof skills === 'string') {
+      storedSkills = skills
         .split(',')
         .map(skill => skill.trim())
         .filter(Boolean);
     }
 
-    res.json({ skills: storedSkills });
+    res.json({ skills: storedSkills, skillsWithLevels: [] });
   } catch (error) {
     console.error('Error loading skills:', error);
     res.status(500).json({ error: 'Failed to load skills' });
