@@ -28,20 +28,20 @@ module.exports = (sequelize, DataTypes) => {
     },
     direction: {
       type: DataTypes.ENUM('frontend', 'backend', 'fullstack'),
-      allowNull: false
+      allowNull: true
     },
     technologies: {
       type: DataTypes.ARRAY(DataTypes.STRING),
-      allowNull: false,
+      allowNull: true,
       defaultValue: [],
     },
     level: {
       type: DataTypes.ENUM('junior', 'middle', 'senior'),
-      allowNull: false
+      allowNull: true
     },
     questionsCount: {
       type: DataTypes.INTEGER,
-      allowNull: false,
+      allowNull: true,
       defaultValue: 10
     },
     status: {
@@ -75,6 +75,31 @@ module.exports = (sequelize, DataTypes) => {
     },
     detailedFeedback: {
       type: DataTypes.TEXT,
+      allowNull: true
+    },
+    // Audio interview fields
+    interviewerPersona: {
+      type: DataTypes.ENUM('strict_hr', 'friendly_tech', 'direct_ceo'),
+      allowNull: true
+    },
+    position: {
+      type: DataTypes.STRING,
+      allowNull: true
+    },
+    overallScore: {
+      type: DataTypes.INTEGER,
+      allowNull: true
+    },
+    feedback: {
+      type: DataTypes.TEXT,
+      allowNull: true
+    },
+    duration: {
+      type: DataTypes.INTEGER,
+      allowNull: true
+    },
+    completedAt: {
+      type: DataTypes.DATE,
       allowNull: true
     }
   }, {

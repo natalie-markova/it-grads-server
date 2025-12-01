@@ -23,6 +23,15 @@ module.exports = (sequelize, DataTypes) => {
     content: {
       type: DataTypes.TEXT,
       allowNull: false,
+    },
+    // Audio interview fields
+    score: {
+      type: DataTypes.INTEGER,
+      allowNull: true,
+    },
+    evaluation: {
+      type: DataTypes.TEXT,
+      allowNull: true,
     }
   }, {
     sequelize,
