@@ -3,13 +3,20 @@
 /** @type {import('sequelize-cli').Migration} */
 module.exports = {
   async up (queryInterface, Sequelize) {
-    await queryInterface.addColumn('Resumes', 'radarImage', {
-      type: Sequelize.TEXT,
-      allowNull: true
-    });
+    const tableInfo = await queryInterface.describeTable('Resumes');
+
+    if (!tableInfo.radarImage) {
+      await queryInterface.addColumn('Resumes', 'radarImage', {
+        type: Sequelize.TEXT,
+        allowNull: true
+      });
+    }
   },
 
   async down (queryInterface, Sequelize) {
-    await queryInterface.removeColumn('Resumes', 'radarImage');
+    const tableInfo = await queryInterface.describeTable('Resumes');
+    if (tableInfo.radarImage) {
+      await queryInterface.removeColumn('Resumes', 'radarImage');
+    }
   }
 };
