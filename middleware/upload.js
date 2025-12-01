@@ -20,15 +20,18 @@ const avatarStorage = multer.diskStorage({
   },
   filename: function (req, file, cb) {
     // Генерируем уникальное имя файла
+    // Используем req.userId (устанавливается authMiddleware) или req.user.id (устанавливается verifyToken)
+    // Если ни один не доступен, используем случайное число (не должно происходить, но на всякий случай)
+    const userId = req.userId || (req.user && req.user.id) || Math.round(Math.random() * 1E9);
     const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
-    const ext = path.extname(file.originalname);
-    cb(null, `avatar-${req.user.id}-${uniqueSuffix}${ext}`);
+    const ext = path.extname(file.originalname) || '.jpg';
+    cb(null, `avatar-${userId}-${uniqueSuffix}${ext}`);
   }
 });
 
 // Фильтр файлов - только изображения
 const imageFilter = function(req, file, cb) {
-  if (!file.mimetype.startsWith('image/')) {
+  if (!file.mimetype || !file.mimetype.startsWith('image/')) {
     return cb(new Error('Только файлы изображений разрешены'), false);
   }
   cb(null, true);

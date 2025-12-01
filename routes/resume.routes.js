@@ -109,17 +109,29 @@ router.post('/', verifyToken, async (req, res) => {
   try {
     const { title, description, skills, skillsArray, experience, education, portfolio, desiredSalary, location, level } = req.body;
 
+    // Обработка skills - может быть строкой JSON или массивом
+    let processedSkills = [];
+    if (skillsArray && Array.isArray(skillsArray)) {
+      processedSkills = skillsArray;
+    } else if (skills) {
+      try {
+        processedSkills = typeof skills === 'string' ? JSON.parse(skills) : skills;
+      } catch (e) {
+        processedSkills = Array.isArray(skills) ? skills : [];
+      }
+    }
+
     const resume = await Resume.create({
       userId: req.user.id,
-      title,
-      description,
-      skills,
-      skillsArray: skillsArray || [],
-      experience,
-      education,
-      portfolio,
-      desiredSalary,
-      location,
+      title: title || null,
+      description: description || null,
+      skills: processedSkills.length > 0 ? processedSkills : [],
+      skillsArray: processedSkills,
+      experience: experience || null,
+      education: education || null,
+      portfolio: portfolio || null,
+      desiredSalary: desiredSalary || null,
+      location: location || null,
       level: level || 'junior',
       isActive: true
     });
@@ -127,7 +139,7 @@ router.post('/', verifyToken, async (req, res) => {
     res.status(201).json(resume);
   } catch (error) {
     console.error('Error creating resume:', error);
-    res.status(500).json({ message: 'Ошибка при создании резюме' });
+    res.status(500).json({ message: 'Ошибка при создании резюме', error: error.message });
   }
 });
 

@@ -1,4 +1,5 @@
 const express = require('express');
+const multer = require('multer');
 const authMiddleware = require('../middleware/authMiddleware');
 const db = require('../db/models');
 const checkUserIdMatches = require('../middleware/checkUserIdMatches');
@@ -145,13 +146,35 @@ router.post('/upload-avatar', authMiddleware, uploadAvatar.single('avatar'), asy
 });
 
 // POST /api/user/upload-photo - Загрузка фото для выпускника
-router.post('/upload-photo', authMiddleware, uploadAvatar.single('photo'), async (req, res) => {
+router.post('/upload-photo', authMiddleware, (req, res, next) => {
+  uploadAvatar.single('photo')(req, res, (err) => {
+    if (err) {
+      if (err instanceof multer.MulterError) {
+        if (err.code === 'LIMIT_FILE_SIZE') {
+          return res.status(400).json({ error: 'Размер файла превышает 5MB' });
+        }
+        return res.status(400).json({ error: err.message });
+      }
+      if (err.message === 'Только файлы изображений разрешены') {
+        return res.status(400).json({ error: err.message });
+      }
+      console.error('Multer error:', err);
+      return res.status(500).json({ error: 'Ошибка при загрузке файла' });
+    }
+    next();
+  });
+}, async (req, res) => {
   try {
     if (!req.file) {
       return res.status(400).json({ error: 'Файл не был загружен' });
     }
 
-    const user = await User.findByPk(req.userId);
+    const userId = req.userId;
+    if (!userId) {
+      return res.status(401).json({ error: 'Пользователь не авторизован' });
+    }
+
+    const user = await User.findByPk(userId);
     if (!user) {
       return res.status(404).json({ error: 'Пользователь не найден' });
     }
@@ -173,7 +196,8 @@ router.post('/upload-photo', authMiddleware, uploadAvatar.single('photo'), async
     });
   } catch (error) {
     console.error('Upload photo error:', error);
-    res.status(500).json({ error: 'Ошибка при загрузке фото' });
+    console.error('Error stack:', error.stack);
+    res.status(500).json({ error: 'Ошибка при загрузке фото', details: error.message });
   }
 });
 
