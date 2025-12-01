@@ -42,6 +42,7 @@ router.post('/register', async (req, res) => {
         httpOnly: true,
         secure: process.env.NODE_ENV === 'production',
         sameSite: 'lax',
+        path: '/',
         maxAge: 7 * 24 * 60 * 60 * 1000
       })
       .status(201)
@@ -84,6 +85,7 @@ router.post('/login', async (req, res) => {
         httpOnly: true,
         secure: process.env.NODE_ENV === 'production',
         sameSite: 'lax',
+        path: '/',
         maxAge: 7 * 24 * 60 * 60 * 1000
       })
       .json({
@@ -125,6 +127,7 @@ const refreshHandler = async (req, res) => {
         httpOnly: true,
         secure: process.env.NODE_ENV === 'production',
         sameSite: 'lax',
+        path: '/',
         maxAge: 7 * 24 * 60 * 60 * 1000
       })
       .json({
@@ -145,7 +148,12 @@ router.post('/refresh', refreshHandler);
 router.get('/refresh', refreshHandler);
 
 const logoutHandler = (req, res) => {
-  res.clearCookie('refreshToken');
+  res.clearCookie('refreshToken', {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === 'production',
+    sameSite: 'lax',
+    path: '/'
+  });
   res.json({ message: 'OK' });
 };
 
@@ -190,6 +198,7 @@ router.post('/registration', async (req, res) => {
         httpOnly: true,
         secure: process.env.NODE_ENV === 'production',
         sameSite: 'lax',
+        path: '/',
         maxAge: 7 * 24 * 60 * 60 * 1000
       })
       .json({
