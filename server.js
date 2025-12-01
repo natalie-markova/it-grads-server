@@ -96,6 +96,8 @@ app.use('/api/skills', skillsRoutes);
 app.use('/api/applications', applicationRoutes);
 app.use('/api/favorites', favoriteRoutes);
 app.use('/api/reviews', reviewRoutes);
+// Маршрут для рейтингов компаний (использует reviewRoutes, но с префиксом /api/companies)
+app.use('/api/companies', reviewRoutes);
 app.use('/api/chats', chatRoutes);
 
 

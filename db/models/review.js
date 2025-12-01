@@ -35,6 +35,14 @@ module.exports = (sequelize, DataTypes) => {
     },
     comment: {
       type: DataTypes.TEXT
+    },
+    employerResponse: {
+      type: DataTypes.TEXT,
+      allowNull: true
+    },
+    employerResponseCreatedAt: {
+      type: DataTypes.DATE,
+      allowNull: true
     }
   }, {
     sequelize,
