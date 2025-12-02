@@ -68,20 +68,92 @@ router.get('/', cacheMiddleware(300), async (req, res) => {
   }
 });
 
-// GET /api/vacancies/recommended/:userId - Получить рекомендованные вакансии на основе навыков
-router.get('/recommended/:userId', cacheMiddleware(600), async (req, res) => {
+// GET /api/vacancies/recommended/:userId - Получить рекомендованные вакансии на основе навыков, карты специальностей и пути обучения
+router.get('/recommended/:userId', cacheMiddleware(300), async (req, res) => {
   try {
-    const { Resume } = db;
+    const { Resume, RoadmapProgress, Roadmap } = db;
     const userId = parseInt(req.params.userId);
 
-    // Получаем навыки пользователя из резюме
+    // Получаем навыки пользователя из резюме (с уровнями)
     const resume = await Resume.findOne({
       where: { userId },
-      attributes: ['skills']
+      attributes: ['skills', 'skillsArray']
     });
 
-    if (!resume || !resume.skills || resume.skills.length === 0) {
-      // Если навыки не найдены, возвращаем все вакансии
+    // Получаем прогресс по карте специальностей
+    const roadmapProgress = await RoadmapProgress.findAll({
+      where: { userId },
+      include: [{
+        model: Roadmap,
+        as: 'roadmap',
+        attributes: ['id', 'title', 'slug', 'category', 'learningPath', 'relatedRoadmaps']
+      }]
+    });
+
+    // Собираем все навыки пользователя
+    let userSkills = [];
+    let userSkillsWithLevels = [];
+
+    // Навыки из радара
+    if (resume?.skills && Array.isArray(resume.skills)) {
+      if (resume.skills.length > 0 && typeof resume.skills[0] === 'object') {
+        // Новый формат с уровнями
+        userSkillsWithLevels = resume.skills;
+        userSkills = resume.skills.map(s => s.skill || s);
+      } else {
+        // Старый формат - просто строки
+        userSkills = resume.skills;
+      }
+    } else if (resume?.skillsArray) {
+      userSkills = resume.skillsArray;
+    }
+
+    // Собираем навыки из карт специальностей (topics из learningPath)
+    const roadmapSkills = [];
+    const completedRoadmapSkills = []; // Навыки из пройденных шагов
+    const userRoadmapTitles = [];
+    const userRoadmapCategories = [];
+
+    roadmapProgress.forEach(progress => {
+      if (progress.roadmap) {
+        userRoadmapTitles.push(progress.roadmap.title.toLowerCase());
+        userRoadmapCategories.push(progress.roadmap.category);
+
+        // Добавляем связанные roadmaps
+        if (progress.roadmap.relatedRoadmaps) {
+          const related = typeof progress.roadmap.relatedRoadmaps === 'string'
+            ? JSON.parse(progress.roadmap.relatedRoadmaps)
+            : progress.roadmap.relatedRoadmaps;
+          related.forEach(r => userRoadmapTitles.push(r.toLowerCase()));
+        }
+
+        // Извлекаем ВСЕ topics из learningPath (путь обучения)
+        const learningPath = typeof progress.roadmap.learningPath === 'string'
+          ? JSON.parse(progress.roadmap.learningPath)
+          : progress.roadmap.learningPath;
+
+        if (learningPath && Array.isArray(learningPath)) {
+          learningPath.forEach((step, stepIndex) => {
+            if (step?.topics) {
+              // Все topics из пути обучения
+              roadmapSkills.push(...step.topics);
+
+              // Отдельно помечаем пройденные (completedSteps)
+              if (progress.completedSteps && progress.completedSteps.includes(stepIndex)) {
+                completedRoadmapSkills.push(...step.topics);
+              }
+            }
+          });
+        }
+      }
+    });
+
+    // Объединяем все навыки пользователя (уникальные)
+    const allUserSkills = [...new Set([...userSkills, ...roadmapSkills])];
+    const confirmedSkills = [...new Set([...userSkills, ...completedRoadmapSkills])];
+
+    // Если нет навыков и нет прогресса по roadmap, возвращаем все вакансии
+    if (allUserSkills.length === 0 && roadmapProgress.length === 0) {
       const vacancies = await Vacancy.findAll({
         where: { isActive: true },
         include: [{
@@ -92,10 +164,13 @@ router.get('/recommended/:userId', cacheMiddleware(600), async (req, res) => {
         order: [['createdAt', 'DESC']],
         limit: 50
       });
-      return res.json(vacancies.map(v => ({ ...v.toJSON(), matchScore: 0 })));
+      return res.json(vacancies.map(v => ({
+        ...v.toJSON(),
+        matchScore: 0,
+        matchingSkills: [],
+        matchReason: 'no_profile'
+      })));
     }
-
-    const userSkills = resume.skills;
 
     // Получаем все активные вакансии
     const vacancies = await Vacancy.findAll({
@@ -107,30 +182,113 @@ router.get('/recommended/:userId', cacheMiddleware(600), async (req, res) => {
       }]
     });
 
-    // Вычисляем совпадение навыков для каждой вакансии
+    // Вычисляем совпадение для каждой вакансии
     const vacanciesWithScore = vacancies.map(vacancy => {
       const vacancySkills = vacancy.skills || [];
+      const vacancyTitle = vacancy.title.toLowerCase();
+      const vacancyDescription = (vacancy.description || '').toLowerCase();
 
-      // Подсчет совпадающих навыков
-      const matchingSkills = userSkills.filter(skill =>
-        vacancySkills.some(vSkill =>
-          vSkill.toLowerCase().includes(skill.toLowerCase()) ||
-          skill.toLowerCase().includes(vSkill.toLowerCase())
-        )
-      );
+      // 1. Подсчет совпадающих навыков
+      const matchingSkills = [];
+      const learningPathSkills = []; // Навыки из пути обучения
+      let skillScore = 0;
 
-      const matchScore = vacancySkills.length > 0
-        ? (matchingSkills.length / vacancySkills.length) * 100
+      allUserSkills.forEach(skill => {
+        const skillName = typeof skill === 'object' ? skill.skill : skill;
+        const skillLevel = typeof skill === 'object' ? skill.level : 3;
+        const isConfirmed = confirmedSkills.includes(skillName);
+
+        const matchedVacancySkill = vacancySkills.find(vSkill =>
+          vSkill.toLowerCase().includes(skillName.toLowerCase()) ||
+          skillName.toLowerCase().includes(vSkill.toLowerCase())
+        );
+
+        if (matchedVacancySkill) {
+          if (isConfirmed) {
+            matchingSkills.push(skillName);
+            skillScore += (skillLevel || 1) * 2; // Подтвержденные навыки ценятся выше
+          } else {
+            learningPathSkills.push(skillName);
+            skillScore += skillLevel || 1;
+          }
+        }
+      });
+
+      // Базовый скор по навыкам (0-50 баллов)
+      const totalMatchedSkills = matchingSkills.length + learningPathSkills.length;
+      const baseSkillScore = vacancySkills.length > 0
+        ? Math.min(50, (totalMatchedSkills / vacancySkills.length) * 50)
         : 0;
+
+      // 2. Бонус за соответствие карте специальностей (0-30 баллов)
+      let roadmapBonus = 0;
+      let matchedRoadmap = null;
+
+      // Ключевые слова для сопоставления
+      const roleKeywords = {
+        'frontend': ['frontend', 'front-end', 'фронтенд', 'react', 'vue', 'angular', 'javascript'],
+        'backend': ['backend', 'back-end', 'бэкенд', 'node', 'python', 'java', 'c#', 'go', 'php'],
+        'fullstack': ['fullstack', 'full-stack', 'full stack', 'фуллстек'],
+        'devops': ['devops', 'dev ops', 'sre', 'infrastructure', 'docker', 'kubernetes'],
+        'data': ['data', 'ml', 'machine learning', 'ai', 'analyst', 'аналитик', 'scientist']
+      };
+
+      userRoadmapTitles.forEach(roadmapTitle => {
+        // Прямое совпадение
+        if (vacancyTitle.includes(roadmapTitle) ||
+            roadmapTitle.includes(vacancyTitle.split(' ')[0])) {
+          roadmapBonus = 30;
+          matchedRoadmap = roadmapTitle;
+        }
+
+        // Проверка по ключевым словам
+        Object.entries(roleKeywords).forEach(([role, keywords]) => {
+          if (roadmapTitle.includes(role)) {
+            keywords.forEach(keyword => {
+              if (vacancyTitle.includes(keyword) || vacancyDescription.includes(keyword)) {
+                if (roadmapBonus < 25) {
+                  roadmapBonus = 25;
+                  matchedRoadmap = roadmapTitle;
+                }
+              }
+            });
+          }
+        });
+      });
+
+      // 3. Бонус за уровень навыков и прогресс обучения (0-20 баллов)
+      const progressBonus = roadmapProgress.length > 0
+        ? Math.min(10, roadmapProgress.reduce((sum, p) => sum + (p.progress || 0), 0) / roadmapProgress.length / 10)
+        : 0;
+
+      const levelBonus = allUserSkills.length > 0
+        ? Math.min(10, (skillScore / allUserSkills.length) * 2)
+        : 0;
+
+      // Итоговый скор
+      const totalScore = Math.round(baseSkillScore + roadmapBonus + progressBonus + levelBonus);
+
+      // Определяем причину рекомендации
+      let matchReason = 'skills';
+      if (roadmapBonus > 0 && matchingSkills.length > 0) {
+        matchReason = 'skills_and_roadmap';
+      } else if (roadmapBonus > 0) {
+        matchReason = 'roadmap';
+      } else if (learningPathSkills.length > 0 && matchingSkills.length === 0) {
+        matchReason = 'learning_path';
+      }
 
       return {
         ...vacancy.toJSON(),
-        matchScore: Math.round(matchScore),
-        matchingSkills: matchingSkills
+        matchScore: Math.min(100, totalScore),
+        matchingSkills,
+        learningPathSkills, // Навыки из пути обучения (ещё изучаются)
+        matchedRoadmap,
+        matchReason
       };
     });
 
-    // Сортируем по совпадению навыков (сначала лучшие совпадения)
+    // Сортируем по совпадению (сначала лучшие)
     vacanciesWithScore.sort((a, b) => b.matchScore - a.matchScore);
 
     res.json(vacanciesWithScore);
