@@ -83,10 +83,10 @@ router.get('/:id', verifyToken, async (req, res) => {
             model: User,
             as: 'sender',
             attributes: ['id', 'username', 'avatar']
-          }],
-          order: [['createdAt', 'ASC']]
+          }]
         }
-      ]
+      ],
+      order: [[{ model: Message, as: 'messages' }, 'createdAt', 'ASC']]
     });
 
     if (!chat) {
@@ -249,6 +249,12 @@ router.put('/:id/read', verifyToken, async (req, res) => {
         }
       }
     );
+
+    // Отправить уведомление через WebSocket текущему пользователю
+    const io = req.app.get('io');
+    if (io) {
+      io.to(`user-${userId}`).emit('messages-read', { chatId });
+    }
 
     res.json({ message: 'Сообщения отмечены как прочитанные' });
   } catch (error) {
