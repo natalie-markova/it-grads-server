@@ -4,6 +4,7 @@ const { AIInterviewSession, AIInterviewMessage } = require('../db/models');
 const authMiddleware = require('../middleware/authMiddleware');
 const yandexGPTService = require('../services/yandexGPT.service');
 const audioInterviewService = require('../services/audioInterview.service');
+const yandexTTSService = require('../services/yandexTTS.service');
 
 // ============= CREATE SESSION =============
 // POST /api/interviews - Создать новую сессию AI интервью
@@ -73,6 +74,47 @@ router.get('/my', authMiddleware, async (req, res) => {
     console.error('Error fetching user interviews:', error);
     res.status(500).json({ error: 'Failed to fetch user interviews' });
   }
+});
+
+// ============= TEXT-TO-SPEECH ROUTES =============
+// POST /api/interviews/tts - Синтез речи через YandexSpeechKit
+router.post('/tts', async (req, res) => {
+  try {
+    const { text, gender, voiceId } = req.body;
+
+    if (!text || !text.trim()) {
+      return res.status(400).json({ error: 'Text is required' });
+    }
+
+    // Ограничение длины текста (Yandex limit ~5000 символов)
+    if (text.length > 5000) {
+      return res.status(400).json({ error: 'Text too long. Maximum 5000 characters.' });
+    }
+
+    const options = {};
+    if (gender) options.gender = gender;
+    if (voiceId) {
+      options.voice = { id: voiceId, emotion: 'neutral' };
+    }
+
+    const result = await yandexTTSService.synthesize(text, options);
+
+    // Отправляем аудио в base64 для простой интеграции с клиентом
+    res.json({
+      audio: result.audio.toString('base64'),
+      format: result.format,
+      voice: result.voice
+    });
+  } catch (error) {
+    console.error('TTS Error:', error);
+    res.status(500).json({ error: 'Failed to synthesize speech' });
+  }
+});
+
+// GET /api/interviews/tts/voices - Получить список доступных голосов
+router.get('/tts/voices', (req, res) => {
+  const voices = yandexTTSService.getAvailableVoices();
+  res.json(voices);
 });
 
 // ============= AUDIO INTERVIEW ROUTES =============
