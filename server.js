@@ -14,11 +14,14 @@ if (fs.existsSync(path.join(__dirname, '.env.production'))) {
   console.log('📝 Loaded .env');
 }
 
-const express      = require('express');
-const https        = require('https');
-const morgan       = require('morgan');
+const express = require('express');
+const https = require('https');
+const http = require('http');
+const { Server } = require('socket.io');
+const morgan = require('morgan');
 const cookieParser = require('cookie-parser');
 const cors = require('cors');
+const jwt = require('jsonwebtoken');
 const db = require('./db/models');
 const redisClient = require('./config/redis');
 const authRoutes = require('./routes/auth.routes');
@@ -103,21 +106,148 @@ app.use('/api/chats', chatRoutes);
 
 (async () => {
   try {
+    // Подключение к базе данных PostgreSQL
     await db.sequelize.authenticate();
     console.log('✔  PostgreSQL connected');
 
+    let server;
+
+    // Создание HTTPS или HTTP сервера в зависимости от наличия SSL сертификатов
     if (httpsOptions) {
-      // Run HTTPS server
-      https.createServer(httpsOptions, app).listen(PORT, () => {
+      // Запуск HTTPS сервера
+      server = https.createServer(httpsOptions, app);
+      server.listen(PORT, () => {
         console.log(`🚀  HTTPS Server on https://localhost:${PORT}`);
         console.log(`🔐  SSL enabled for local development`);
       });
     } else {
-      // Fallback to HTTP
-      app.listen(PORT, () => {
+      // Запуск HTTP сервера (если нет SSL)
+      server = http.createServer(app);
+      server.listen(PORT, () => {
         console.log(`🚀  HTTP Server on http://localhost:${PORT}`);
       });
     }
+
+    // Инициализация Socket.IO для WebSocket соединений
+    const io = new Server(server, {
+      cors: {
+        // Список разрешённых адресов для подключения (локальные и продакшн)
+        origin: [
+          'http://localhost:3000',
+          'http://localhost:3001',
+          'http://localhost:5173',
+          'https://localhost:3000',
+          'https://localhost:3001',
+          'https://localhost:5173',
+          'http://192.168.0.3:3000',
+          'http://127.0.0.1:3000',
+          'https://www.itgrads.ru',
+          'https://itgrads.ru',
+          'http://www.itgrads.ru',
+          'http://itgrads.ru',
+          'http://185.55.56.201'
+        ],
+        credentials: true,
+        methods: ['GET', 'POST']
+      }
+    });
+
+    console.log('✔  WebSocket (Socket.IO) initialized');
+
+    // Middleware для аутентификации WebSocket соединений
+    io.use((socket, next) => {
+      const token = socket.handshake.auth.token;
+      if (!token) {
+        return next(new Error('Authentication error: No token provided'));
+      }
+
+      try {
+        // Верифицировать токен и извлечь userId
+        const decoded = jwt.verify(token, process.env.JWT_SECRET || 'ACCESS_SECRET_KEY');
+        socket.handshake.auth.userId = decoded.userId;
+        console.log(`🔐 WebSocket authenticated: User ${decoded.userId}`);
+        next();
+      } catch (error) {
+        console.error('WebSocket authentication error:', error.message);
+        return next(new Error('Authentication error: Invalid token'));
+      }
+    });
+
+    // Обработчик WebSocket подключений
+    io.on('connection', (socket) => {
+      const userId = socket.handshake.auth.userId;
+      console.log('✅ User connected:', socket.id, 'userId:', userId);
+
+      // Присоединить пользователя к его личной комнате для получения уведомлений
+      socket.join(`user-${userId}`);
+      console.log(`User ${userId} joined personal room: user-${userId}`);
+
+      // Присоединиться к чату
+      socket.on('join-chat', (chatId) => {
+        socket.join(`chat-${chatId}`);
+        console.log(`User ${socket.id} joined chat ${chatId}`);
+      });
+
+      // Покинуть чат
+      socket.on('leave-chat', (chatId) => {
+        socket.leave(`chat-${chatId}`);
+        console.log(`User ${socket.id} left chat ${chatId}`);
+      });
+
+      // Отправка сообщения
+      socket.on('send-message', async (data) => {
+        const { chatId, message } = data;
+        try {
+          // Получить информацию о чате
+          const chat = await db.Chat.findByPk(chatId);
+          if (!chat) {
+            return socket.emit('message-error', { error: 'Chat not found' });
+          }
+
+          // Сохранить сообщение в БД
+          const savedMessage = await db.Message.create({
+            chatId: chatId,
+            content: message,
+            senderId: socket.handshake.auth.userId,
+            isRead: false
+          });
+
+          // Определить получателя
+          const recipientId = chat.user1Id === socket.handshake.auth.userId ? chat.user2Id : chat.user1Id;
+
+          // Отправить сообщение всем в комнате чата
+          io.to(`chat-${chatId}`).emit('new-message', {
+            id: savedMessage.id,
+            chatId: savedMessage.chatId,
+            content: savedMessage.content,
+            senderId: savedMessage.senderId,
+            isRead: savedMessage.isRead,
+            createdAt: savedMessage.createdAt,
+            updatedAt: savedMessage.updatedAt
+          });
+
+          // Отправить уведомление получателю в его личную комнату
+          io.to(`user-${recipientId}`).emit('notification-unread', {
+            chatId: savedMessage.chatId,
+            senderId: savedMessage.senderId
+          });
+
+          console.log(`✉️  Message sent in chat ${chatId} by user ${savedMessage.senderId} to user ${recipientId}`);
+        } catch (error) {
+          console.error('Error sending message:', error);
+          socket.emit('message-error', { error: 'Failed to send message' });
+        }
+      });
+    
+      // Обработчик отключения пользователя
+      socket.on('disconnect', () => {
+        console.log('❌ User disconnected:', socket.id);
+      });
+    });
+
+    // Делаем io доступным для использования в маршрутах
+    app.set('io', io);
+
   } catch (err) {
     console.error('✖  DB connection error:', err);
   }
