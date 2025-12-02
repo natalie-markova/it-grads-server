@@ -323,4 +323,36 @@ router.get('/unread/count', verifyToken, async (req, res) => {
   }
 });
 
+// DELETE /api/chats/:id - Удалить чат
+router.delete('/:id', verifyToken, async (req, res) => {
+  try {
+    const chatId = req.params.id;
+    const userId = req.user.id;
+
+    const chat = await Chat.findByPk(chatId);
+
+    if (!chat) {
+      return res.status(404).json({ message: 'Чат не найден' });
+    }
+
+    // Проверка доступа
+    if (chat.user1Id !== userId && chat.user2Id !== userId) {
+      return res.status(403).json({ message: 'Нет доступа к этому чату' });
+    }
+
+    // Удаляем все сообщения в чате
+    await Message.destroy({
+      where: { chatId }
+    });
+
+    // Удаляем сам чат
+    await chat.destroy();
+
+    res.json({ message: 'Чат успешно удален' });
+  } catch (error) {
+    console.error('Error deleting chat:', error);
+    res.status(500).json({ message: 'Ошибка при удалении чата' });
+  }
+});
+
 module.exports = router;

@@ -9,6 +9,17 @@ const { User } = db;
 
 const router = express.Router();
 
+// GET /api/users/count - Получить количество пользователей
+router.get('/count', async (req, res) => {
+  try {
+    const count = await User.count();
+    res.json({ count });
+  } catch (error) {
+    console.error('Error getting user count:', error);
+    res.status(500).json({ message: 'Ошибка при получении количества пользователей' });
+  }
+});
+
 // Единый формат ответа для профиля
 const getUserProfile = async (userId) => {
   return await User.findByPk(userId, {
@@ -179,13 +190,14 @@ router.post('/upload-photo', authMiddleware, (req, res, next) => {
       return res.status(404).json({ error: 'Пользователь не найден' });
     }
 
-    if (user.role !== 'graduate') {
-      return res.status(403).json({ error: 'Доступно только выпускникам' });
-    }
-
     // Сохраняем путь к файлу в БД
     const photoUrl = `/uploads/avatars/${req.file.filename}`;
-    await user.update({ photo: photoUrl, avatar: photoUrl });
+    // Обновляем photo для выпускников и avatar для работодателей
+    if (user.role === 'graduate') {
+      await user.update({ photo: photoUrl, avatar: photoUrl });
+    } else if (user.role === 'employer') {
+      await user.update({ avatar: photoUrl });
+    }
 
     // Инвалидируем кэш профиля
     await invalidateCache(`cache:/api/users/*`);
