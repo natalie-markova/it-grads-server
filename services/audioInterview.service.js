@@ -191,40 +191,62 @@ class AudioInterviewService {
   }
 
   evaluateAnswer(answer) {
-    if (!answer || typeof answer !== 'string') {
-      return { score: 2, evaluation: 'Ответ не распознан. Постарайтесь говорить четко и по делу.' };
+    // Пустой или невалидный ответ = 0 баллов
+    if (!answer || typeof answer !== 'string' || answer.trim().length === 0) {
+      return { score: 0, evaluation: 'Ответ отсутствует. На собеседовании это критическая ошибка.' };
     }
 
-    const normalized = answer.toLowerCase();
-    const wordCount = normalized.split(' ').length;
-    const lengthScore = Math.min(10, Math.floor(wordCount / 5));
+    const normalized = answer.toLowerCase().trim();
+    const wordCount = normalized.split(/\s+/).filter(w => w.length > 0).length;
 
-    let keywordScore = 0;
+    // Слишком короткий ответ (менее 5 слов) = 0-2 балла
+    if (wordCount < 5) {
+      return { score: 1, evaluation: 'Ответ слишком короткий и неинформативный. На реальном собеседовании это будет воспринято негативно.' };
+    }
+
+    // Очень короткий ответ (5-10 слов) = низкий балл
+    if (wordCount < 10) {
+      return { score: 3, evaluation: 'Ответ недостаточно развёрнут. Требуется больше деталей, примеров и конкретики.' };
+    }
+
+    // Базовая оценка по длине
+    let baseScore = 0;
+    if (wordCount >= 10 && wordCount < 20) baseScore = 4;
+    else if (wordCount >= 20 && wordCount < 40) baseScore = 5;
+    else if (wordCount >= 40 && wordCount < 60) baseScore = 6;
+    else if (wordCount >= 60) baseScore = 7;
+
+    // Бонусы за ключевые слова (профессиональный контент)
+    let keywordBonus = 0;
     const matchedGroups = [];
     keywordGroups.forEach(group => {
       if (group.keywords.some(keyword => normalized.includes(keyword))) {
-        keywordScore += 1.5;
+        keywordBonus += 0.5;
         matchedGroups.push(group.label);
       }
     });
+    keywordBonus = Math.min(3, keywordBonus); // Максимум +3 балла за ключевые слова
 
-    const totalScore = Math.max(4, Math.min(10, lengthScore + keywordScore));
+    const totalScore = Math.min(10, baseScore + keywordBonus);
     const remarks = [];
 
-    if (wordCount < 15) {
-      remarks.push('Ответ слишком краткий. Добавьте больше деталей и примеров.');
-    } else if (lengthScore >= 6) {
-      remarks.push('Ответ структурирован и достаточно подробный.');
+    // Строгие комментарии
+    if (totalScore <= 4) {
+      remarks.push('Слабый ответ. Не хватает конкретики, примеров из опыта и профессиональной лексики.');
+    } else if (totalScore <= 6) {
+      remarks.push('Средний ответ. Есть потенциал, но нужно больше структуры и конкретных примеров.');
+    } else if (totalScore <= 8) {
+      remarks.push('Хороший ответ. Структурирован и содержит релевантную информацию.');
     } else {
-      remarks.push('Добавьте конкретики и деталей, чтобы ответ звучал увереннее.');
+      remarks.push('Отличный ответ! Профессионально и по делу.');
     }
 
-    if (matchedGroups.length >= 2) {
-      remarks.push(`Отлично раскрыты: ${matchedGroups.join(', ')}.`);
-    } else if (matchedGroups.length === 1) {
-      remarks.push(`Хорошо раскрыт аспект: ${matchedGroups[0]}.`);
+    if (matchedGroups.length >= 3) {
+      remarks.push(`Хорошо раскрыты аспекты: ${matchedGroups.join(', ')}.`);
+    } else if (matchedGroups.length >= 1) {
+      remarks.push(`Затронуты: ${matchedGroups.join(', ')}.`);
     } else {
-      remarks.push('Попробуйте подчеркнуть результаты, технологии и личный вклад.');
+      remarks.push('Не упомянуты ключевые аспекты: результаты, технологии, командная работа.');
     }
 
     return {
@@ -235,56 +257,96 @@ class AudioInterviewService {
 
   buildSummary(messages) {
     const userAnswers = messages.filter(m => m.role === 'user');
+
+    // Нет ответов = 0 баллов
     if (!userAnswers.length) {
       return {
-        overallScore: 50,
-        strengths: ['Вы начали интервью, но не завершили его'],
-        weaknesses: ['Ответы отсутствуют, сложно оценить уровень'],
-        feedback: 'Постарайтесь пройти интервью полностью, чтобы получить фидбек.',
+        overallScore: 0,
+        strengths: [],
+        weaknesses: ['Интервью не пройдено - ответы отсутствуют'],
+        feedback: 'Вы не дали ни одного ответа. На реальном собеседовании это означает отказ.',
       };
     }
 
     const scoredMessages = messages.filter(m => m.role === 'assistant' && typeof m.score === 'number');
-    const overallScore = scoredMessages.length
-      ? Math.round(scoredMessages.reduce((sum, msg) => sum + msg.score, 0) / scoredMessages.length * 10)
-      : 60;
+
+    // Считаем средний балл строго
+    let overallScore = 0;
+    if (scoredMessages.length) {
+      const avgScore = scoredMessages.reduce((sum, msg) => sum + msg.score, 0) / scoredMessages.length;
+      overallScore = Math.round(avgScore * 10); // Переводим в шкалу 0-100
+    }
 
     const strengths = [];
     const weaknesses = [];
 
-    if (overallScore > 75) {
-      strengths.push('Отличная структура ответов и уверенный тон');
-    } else if (overallScore > 60) {
-      strengths.push('Хорошая структура ответов');
+    // Строгая оценка по среднему баллу
+    if (overallScore >= 80) {
+      strengths.push('Отличная структура ответов и профессиональный подход');
+    } else if (overallScore >= 60) {
+      strengths.push('Приемлемый уровень ответов');
+    } else if (overallScore >= 40) {
+      weaknesses.push('Ответы поверхностные и недостаточно структурированы');
     } else {
-      weaknesses.push('Ответы требуют дополнительной структуры и конкретики');
+      weaknesses.push('Критически слабые ответы. Требуется серьёзная подготовка.');
     }
 
-    const longAnswers = userAnswers.filter(a => a.content.split(' ').length > 40);
+    // Анализ длины ответов
+    const longAnswers = userAnswers.filter(a => a.content.split(/\s+/).length >= 40);
+    const shortAnswers = userAnswers.filter(a => a.content.split(/\s+/).length < 15);
+
     if (longAnswers.length >= 3) {
-      strengths.push('Вы приводите развернутые примеры из опыта');
+      strengths.push('Развернутые ответы с примерами из опыта');
     } else if (longAnswers.length >= 1) {
-      strengths.push('Есть примеры из практики');
-    } else {
-      weaknesses.push('Добавьте подробные кейсы из практики');
+      strengths.push('Есть развернутые ответы');
     }
 
-    // Анализируем упоминание технологий
+    if (shortAnswers.length >= 3) {
+      weaknesses.push('Слишком много коротких, неинформативных ответов');
+    } else if (shortAnswers.length >= 1) {
+      weaknesses.push('Некоторые ответы слишком краткие');
+    }
+
+    // Анализируем упоминание ключевых аспектов
     const allAnswers = userAnswers.map(a => a.content.toLowerCase()).join(' ');
-    const techMentioned = keywordGroups[3].keywords.some(k => allAnswers.includes(k));
-    if (techMentioned) {
-      strengths.push('Хорошее знание технологий и инструментов');
+    let aspectsFound = 0;
+
+    if (keywordGroups[0].keywords.some(k => allAnswers.includes(k))) { // Команда
+      strengths.push('Упоминание командной работы');
+      aspectsFound++;
+    }
+    if (keywordGroups[1].keywords.some(k => allAnswers.includes(k))) { // Результаты
+      strengths.push('Фокус на результатах');
+      aspectsFound++;
+    }
+    if (keywordGroups[3].keywords.some(k => allAnswers.includes(k))) { // Технологии
+      strengths.push('Знание технологий и инструментов');
+      aspectsFound++;
+    }
+
+    if (aspectsFound === 0) {
+      weaknesses.push('Не упомянуты важные аспекты: командная работа, результаты, технологии');
+    }
+
+    // Формируем итоговый фидбек
+    let feedback;
+    if (overallScore >= 80) {
+      feedback = 'Отличное интервью! Вы показали профессионализм и хорошую подготовку.';
+    } else if (overallScore >= 60) {
+      feedback = 'Неплохое интервью. Есть над чем работать, но основа есть.';
+    } else if (overallScore >= 40) {
+      feedback = 'Слабое интервью. Нужна серьёзная подготовка: работайте над структурой ответов и добавляйте конкретные примеры.';
+    } else if (overallScore >= 20) {
+      feedback = 'Очень слабое интервью. Ответы неубедительны. Рекомендуется изучить методику STAR для ответов на собеседованиях.';
+    } else {
+      feedback = 'Провальное интервью. Требуется полная переподготовка к собеседованиям.';
     }
 
     return {
-      overallScore: Math.min(100, Math.max(40, overallScore)),
-      strengths: strengths.length ? strengths : ['Вы готовы развиваться и совершенствовать навыки'],
-      weaknesses: weaknesses.length ? weaknesses : ['Продолжайте тренироваться и анализировать ответы'],
-      feedback: overallScore > 75
-        ? 'Отличная работа! Вы хорошо подготовлены к собеседованию.'
-        : overallScore > 60
-        ? 'Хорошо! Продолжайте практиковаться и добавляйте больше конкретных примеров.'
-        : 'Есть потенциал для роста — уделите внимание структуре ответов и конкретным примерам.',
+      overallScore: Math.max(0, Math.min(100, overallScore)),
+      strengths: strengths.length ? strengths : ['Вы пытались отвечать на вопросы'],
+      weaknesses: weaknesses.length ? weaknesses : [],
+      feedback,
     };
   }
 }

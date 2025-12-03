@@ -5,24 +5,24 @@
 
 const axios = require('axios');
 
-// Доступные голоса YandexSpeechKit
-// Премиум голоса (более естественные)
+// Доступные голоса YandexSpeechKit (актуальные на 2024)
+// https://yandex.cloud/docs/speechkit/tts/voices
 const VOICES = {
   female: [
     { id: 'alena', name: 'Алёна', emotion: 'neutral' },
-    { id: 'alena', name: 'Алёна (добрая)', emotion: 'good' },
     { id: 'jane', name: 'Джейн', emotion: 'neutral' },
-    { id: 'jane', name: 'Джейн (добрая)', emotion: 'good' },
     { id: 'omazh', name: 'Омаж', emotion: 'neutral' },
     { id: 'marina', name: 'Марина', emotion: 'neutral' },
+    { id: 'lera', name: 'Лера', emotion: 'neutral' },
+    { id: 'masha', name: 'Маша', emotion: 'neutral' },
   ],
   male: [
     { id: 'filipp', name: 'Филипп', emotion: 'neutral' },
     { id: 'ermil', name: 'Ермил', emotion: 'neutral' },
-    { id: 'ermil', name: 'Ермил (добрый)', emotion: 'good' },
     { id: 'madirus', name: 'Мадирус', emotion: 'neutral' },
     { id: 'alexander', name: 'Александр', emotion: 'neutral' },
     { id: 'kirill', name: 'Кирилл', emotion: 'neutral' },
+    { id: 'anton', name: 'Антон', emotion: 'neutral' },
   ]
 };
 
@@ -59,24 +59,39 @@ class YandexTTSService {
    * Синтезировать речь
    * @param {string} text - Текст для озвучки
    * @param {object} options - Опции синтеза
-   * @returns {Promise<Buffer>} - Аудио данные в формате OGG
+   * @returns {Promise<Buffer>} - Аудио данные
    */
   async synthesize(text, options = {}) {
+    // Проверяем наличие API ключа
+    if (!this.apiKey) {
+      console.error('YandexTTS: API Key is not configured');
+      throw new Error('TTS service not configured: missing API key');
+    }
+
+    if (!this.folderId) {
+      console.error('YandexTTS: Folder ID is not configured');
+      throw new Error('TTS service not configured: missing folder ID');
+    }
+
     const voice = options.voice || this.getRandomVoice(options.gender);
+
+    // Используем mp3 формат - лучшая совместимость с браузерами
+    const audioFormat = 'mp3';
+    const mimeType = 'audio/mpeg';
 
     const params = new URLSearchParams({
       text: text,
       lang: 'ru-RU',
       voice: voice.id,
-      emotion: voice.emotion || 'neutral',
       speed: options.speed || '1.0',
-      format: 'oggopus', // Лучше для веба
+      format: 'lame', // MP3 формат (lame encoder)
+      sampleRateHertz: '48000',
       folderId: this.folderId
     });
 
     try {
       console.log('YandexTTS: Synthesizing text with voice:', voice.id);
-      console.log('YandexTTS: API Key (first 10 chars):', this.apiKey?.substring(0, 10));
+      console.log('YandexTTS: Text length:', text.length);
       console.log('YandexTTS: Folder ID:', this.folderId);
 
       const response = await axios.post(
@@ -92,16 +107,18 @@ class YandexTTSService {
         }
       );
 
-      console.log('YandexTTS: Success, audio size:', response.data.byteLength);
+      console.log('YandexTTS: Success, audio size:', response.data.byteLength, 'bytes');
 
       return {
         audio: Buffer.from(response.data),
         voice: voice,
-        format: 'audio/ogg'
+        format: mimeType
       };
     } catch (error) {
-      // Попробуем декодировать ошибку из arraybuffer
+      // Детальная обработка ошибок
       let errorMessage = error.message;
+      let statusCode = error.response?.status;
+
       if (error.response?.data) {
         try {
           const errorText = Buffer.from(error.response.data).toString('utf-8');
@@ -109,10 +126,24 @@ class YandexTTSService {
           const errorJson = JSON.parse(errorText);
           errorMessage = errorJson.message || errorJson.error_message || errorText;
         } catch (e) {
-          console.error('YandexTTS Raw Error:', error.response.data);
+          // Если не JSON, просто выводим как текст
+          const errorText = Buffer.from(error.response.data).toString('utf-8');
+          console.error('YandexTTS Raw Error:', errorText);
+          errorMessage = errorText || error.message;
         }
       }
-      console.error('YandexTTS Error:', errorMessage);
+
+      console.error('YandexTTS Error (status:', statusCode, '):', errorMessage);
+
+      // Добавляем информацию о статусе в ошибку
+      if (statusCode === 401) {
+        throw new Error('TTS authentication failed: invalid API key');
+      } else if (statusCode === 403) {
+        throw new Error('TTS access denied: check folder permissions');
+      } else if (statusCode === 429) {
+        throw new Error('TTS rate limit exceeded: try again later');
+      }
+
       throw new Error('Failed to synthesize speech: ' + errorMessage);
     }
   }

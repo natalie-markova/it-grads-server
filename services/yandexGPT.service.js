@@ -1,16 +1,25 @@
 const axios = require('axios');
 
-const YANDEX_API_KEY = process.env.YANDEX_API_KEY;
-const YANDEX_FOLDER_ID = process.env.YANDEX_FOLDER_ID;
-const YANDEX_API_URL = process.env.YANDEX_API_URL;
-
-
 class YandexGPTService {
+  // Геттеры для динамического получения env переменных (после загрузки dotenv)
+  get apiKey() {
+    return process.env.YANDEX_API_KEY;
+  }
+
+  get folderId() {
+    return process.env.YANDEX_FOLDER_ID;
+  }
+
+  get apiUrl() {
+    return process.env.YANDEX_API_URL || 'https://llm.api.cloud.yandex.net/foundationModels/v1/completion';
+  }
+
   /**
    * Отправить запрос к YandexGPT
    */
   async sendRequest(messages, options = {}) {
-    if (!YANDEX_API_KEY || !YANDEX_FOLDER_ID) {
+    if (!this.apiKey || !this.folderId) {
+      console.error('YandexGPT: Missing credentials - API_KEY:', !!this.apiKey, 'FOLDER_ID:', !!this.folderId);
       throw new Error('YandexGPT credentials not configured');
     }
 
@@ -20,10 +29,14 @@ class YandexGPTService {
     } = options;
 
     try {
+      console.log('YandexGPT: Sending request to', this.apiUrl);
+      console.log('YandexGPT: Folder ID:', this.folderId);
+      console.log('YandexGPT: API Key (first 10 chars):', this.apiKey?.substring(0, 10) + '...');
+
       const response = await axios.post(
-        YANDEX_API_URL,
+        this.apiUrl,
         {
-          modelUri: `gpt://${YANDEX_FOLDER_ID}/yandexgpt-lite/latest`,
+          modelUri: `gpt://${this.folderId}/yandexgpt-lite/latest`,
           completionOptions: {
             stream: false,
             temperature,
@@ -36,7 +49,7 @@ class YandexGPTService {
         },
         {
           headers: {
-            'Authorization': `Api-Key ${YANDEX_API_KEY}`,
+            'Authorization': `Api-Key ${this.apiKey}`,
             'Content-Type': 'application/json'
           }
         }
