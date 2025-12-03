@@ -36,6 +36,7 @@ const applicationRoutes = require('./routes/application.routes');
 const favoriteRoutes = require('./routes/favorite.routes');
 const reviewRoutes = require('./routes/review.routes');
 const chatRoutes = require('./routes/chat.routes');
+const interviewTrackerRoutes = require('./routes/interviewTracker.routes');
 
 
 
@@ -102,6 +103,7 @@ app.use('/api/reviews', reviewRoutes);
 // Маршрут для рейтингов компаний (использует reviewRoutes, но с префиксом /api/companies)
 app.use('/api/companies', reviewRoutes);
 app.use('/api/chats', chatRoutes);
+app.use('/api/interview-tracker', interviewTrackerRoutes);
 
 
 (async () => {
