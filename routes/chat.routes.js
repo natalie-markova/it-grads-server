@@ -228,6 +228,14 @@ router.post('/', verifyToken, async (req, res) => {
           }
         ]
       });
+
+      // Отправляем уведомление обоим пользователям о создании нового чата
+      const io = req.app.get('io');
+      if (io) {
+        io.to(`user-${userId}`).emit('chat-created', { chat });
+        io.to(`user-${otherUserId}`).emit('chat-created', { chat });
+        console.log(`💬 New chat ${chat.id} created between users ${userId} and ${otherUserId}`);
+      }
     }
 
     res.status(201).json(chat);
@@ -344,6 +352,9 @@ router.delete('/:id', verifyToken, async (req, res) => {
       return res.status(403).json({ message: req.t('chat.accessDenied') });
     }
 
+    // Определяем собеседника (второго пользователя в чате)
+    const otherUserId = chat.user1Id === userId ? chat.user2Id : chat.user1Id;
+
     // Удаляем все сообщения в чате
     await Message.destroy({
       where: { chatId }
@@ -351,6 +362,13 @@ router.delete('/:id', verifyToken, async (req, res) => {
 
     // Удаляем сам чат
     await chat.destroy();
+
+    // Отправляем уведомление собеседнику через WebSocket о том, что чат удален
+    const io = req.app.get('io');
+    if (io) {
+      io.to(`user-${otherUserId}`).emit('chat-deleted', { chatId });
+      console.log(`🗑️  Chat ${chatId} deleted by user ${userId}, notifying user ${otherUserId}`);
+    }
 
     res.json({ message: req.t('chat.deleted') });
   } catch (error) {
