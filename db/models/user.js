@@ -14,6 +14,11 @@ module.exports = (sequelize, DataTypes) => {
       User.hasMany(models.Favorite, { foreignKey: 'userId', as: 'favorites' });
       User.hasMany(models.Review, { foreignKey: 'employerId', as: 'receivedReviews' });
       User.hasMany(models.Review, { foreignKey: 'userId', as: 'givenReviews' });
+      // Code Battle Arena associations
+      User.hasOne(models.PlayerRating, { foreignKey: 'userId', as: 'playerRating' });
+      User.hasMany(models.GameSession, { foreignKey: 'userId', as: 'gameSessions' });
+      User.hasMany(models.GameMatch, { foreignKey: 'player1Id', as: 'matchesAsPlayer1' });
+      User.hasMany(models.GameMatch, { foreignKey: 'player2Id', as: 'matchesAsPlayer2' });
     }
   }
 

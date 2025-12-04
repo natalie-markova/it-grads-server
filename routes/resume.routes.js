@@ -8,6 +8,11 @@ const { Resume, User } = db;
 
 // Middleware для проверки авторизации
 const verifyToken = require('../middleware/verifyToken');
+const skillAggregator = require('../services/skillAggregator.service');
+const { i18nMiddleware } = require('../config/i18n');
+
+// Apply i18n middleware to all routes
+router.use(i18nMiddleware);
 
 // GET /api/resumes - Получить все активные резюме
 router.get('/', async (req, res) => {
@@ -63,7 +68,7 @@ router.get('/', async (req, res) => {
     res.json(resumes);
   } catch (error) {
     console.error('Error fetching resumes:', error);
-    res.status(500).json({ message: 'Ошибка при получении резюме' });
+    res.status(500).json({ message: req.t('resume.fetchError') });
   }
 });
 
@@ -79,13 +84,13 @@ router.get('/:id', async (req, res) => {
     });
 
     if (!resume) {
-      return res.status(404).json({ message: 'Резюме не найдено' });
+      return res.status(404).json({ message: req.t('resume.notFound') });
     }
 
     res.json(resume);
   } catch (error) {
     console.error('Error fetching resume:', error);
-    res.status(500).json({ message: 'Ошибка при получении резюме' });
+    res.status(500).json({ message: req.t('resume.fetchError') });
   }
 });
 
@@ -100,7 +105,7 @@ router.get('/user/:userId', async (req, res) => {
     res.json(resumes);
   } catch (error) {
     console.error('Error fetching user resumes:', error);
-    res.status(500).json({ message: 'Ошибка при получении резюме пользователя' });
+    res.status(500).json({ message: req.t('resume.fetchError') });
   }
 });
 
@@ -136,10 +141,13 @@ router.post('/', verifyToken, async (req, res) => {
       isActive: true
     });
 
+    // Триггерим пересчёт радара навыков (асинхронно)
+    skillAggregator.triggerRecalculation(req.user.id, 'resume');
+
     res.status(201).json(resume);
   } catch (error) {
     console.error('Error creating resume:', error);
-    res.status(500).json({ message: 'Ошибка при создании резюме', error: error.message });
+    res.status(500).json({ message: req.t('resume.createError'), error: error.message });
   }
 });
 
@@ -149,11 +157,11 @@ router.put('/:id', verifyToken, async (req, res) => {
     const resume = await Resume.findByPk(req.params.id);
 
     if (!resume) {
-      return res.status(404).json({ message: 'Резюме не найдено' });
+      return res.status(404).json({ message: req.t('resume.notFound') });
     }
 
     if (resume.userId !== req.user.id) {
-      return res.status(403).json({ message: 'Нет доступа' });
+      return res.status(403).json({ message: req.t('resume.accessDenied') });
     }
 
     const { title, description, skills, skillsArray, experience, education, portfolio, desiredSalary, location, level, isActive, radarImage } = req.body;
@@ -174,10 +182,13 @@ router.put('/:id', verifyToken, async (req, res) => {
 
     await resume.update(updateData);
 
+    // Триггерим пересчёт радара навыков (асинхронно)
+    skillAggregator.triggerRecalculation(req.user.id, 'resume');
+
     res.json(resume);
   } catch (error) {
     console.error('Error updating resume:', error);
-    res.status(500).json({ message: 'Ошибка при обновлении резюме' });
+    res.status(500).json({ message: req.t('resume.updateError') });
   }
 });
 
@@ -187,18 +198,18 @@ router.delete('/:id', verifyToken, async (req, res) => {
     const resume = await Resume.findByPk(req.params.id);
 
     if (!resume) {
-      return res.status(404).json({ message: 'Резюме не найдено' });
+      return res.status(404).json({ message: req.t('resume.notFound') });
     }
 
     if (resume.userId !== req.user.id) {
-      return res.status(403).json({ message: 'Нет доступа' });
+      return res.status(403).json({ message: req.t('resume.accessDenied') });
     }
 
     await resume.destroy();
-    res.json({ message: 'Резюме удалено' });
+    res.json({ message: req.t('resume.deleted') });
   } catch (error) {
     console.error('Error deleting resume:', error);
-    res.status(500).json({ message: 'Ошибка при удалении резюме' });
+    res.status(500).json({ message: req.t('resume.deleteError') });
   }
 });
 
@@ -214,11 +225,11 @@ router.post('/:id/generate-pdf', verifyToken, async (req, res) => {
     });
 
     if (!resume) {
-      return res.status(404).json({ message: 'Резюме не найдено' });
+      return res.status(404).json({ message: req.t('resume.notFound') });
     }
 
     if (resume.userId !== req.user.id) {
-      return res.status(403).json({ message: 'Нет доступа' });
+      return res.status(403).json({ message: req.t('resume.accessDenied') });
     }
 
     // Создаем директорию для PDF если её нет
@@ -244,16 +255,16 @@ router.post('/:id/generate-pdf', verifyToken, async (req, res) => {
     doc.fontSize(12).text(`${resume.user.username}`, { align: 'center' });
     doc.text(`Email: ${resume.user.email}`, { align: 'center' });
     if (resume.user.phone) {
-      doc.text(`Телефон: ${resume.user.phone}`, { align: 'center' });
+      doc.text(`${req.lang === 'ru' ? 'Телефон' : 'Phone'}: ${resume.user.phone}`, { align: 'center' });
     }
     if (resume.location) {
-      doc.text(`Местоположение: ${resume.location}`, { align: 'center' });
+      doc.text(`${req.lang === 'ru' ? 'Местоположение' : 'Location'}: ${resume.location}`, { align: 'center' });
     }
     doc.moveDown(2);
 
     // Описание
     if (resume.description) {
-      doc.fontSize(16).text('О себе', { underline: true });
+      doc.fontSize(16).text(req.lang === 'ru' ? 'О себе' : 'About', { underline: true });
       doc.moveDown(0.5);
       doc.fontSize(11).text(resume.description);
       doc.moveDown();
@@ -261,7 +272,7 @@ router.post('/:id/generate-pdf', verifyToken, async (req, res) => {
 
     // Навыки
     if (resume.skills && resume.skills.length > 0) {
-      doc.fontSize(16).text('Навыки', { underline: true });
+      doc.fontSize(16).text(req.lang === 'ru' ? 'Навыки' : 'Skills', { underline: true });
       doc.moveDown(0.5);
       doc.fontSize(11).text(resume.skills.join(', '));
       doc.moveDown();
@@ -269,7 +280,7 @@ router.post('/:id/generate-pdf', verifyToken, async (req, res) => {
 
     // Опыт работы
     if (resume.experience) {
-      doc.fontSize(16).text('Опыт работы', { underline: true });
+      doc.fontSize(16).text(req.lang === 'ru' ? 'Опыт работы' : 'Experience', { underline: true });
       doc.moveDown(0.5);
       doc.fontSize(11).text(resume.experience);
       doc.moveDown();
@@ -277,7 +288,7 @@ router.post('/:id/generate-pdf', verifyToken, async (req, res) => {
 
     // Образование
     if (resume.education) {
-      doc.fontSize(16).text('Образование', { underline: true });
+      doc.fontSize(16).text(req.lang === 'ru' ? 'Образование' : 'Education', { underline: true });
       doc.moveDown(0.5);
       doc.fontSize(11).text(resume.education);
       doc.moveDown();
@@ -285,9 +296,9 @@ router.post('/:id/generate-pdf', verifyToken, async (req, res) => {
 
     // Желаемая зарплата
     if (resume.desiredSalary) {
-      doc.fontSize(16).text('Желаемая зарплата', { underline: true });
+      doc.fontSize(16).text(req.lang === 'ru' ? 'Желаемая зарплата' : 'Desired Salary', { underline: true });
       doc.moveDown(0.5);
-      doc.fontSize(11).text(`${resume.desiredSalary} руб.`);
+      doc.fontSize(11).text(`${resume.desiredSalary} ${req.lang === 'ru' ? 'руб.' : 'RUB'}`);
     }
 
     doc.end();
@@ -299,19 +310,19 @@ router.post('/:id/generate-pdf', verifyToken, async (req, res) => {
       await resume.update({ pdfUrl });
 
       res.json({
-        message: 'PDF успешно сгенерирован',
+        message: req.t('resume.pdfGenerated'),
         pdfUrl
       });
     });
 
     stream.on('error', (error) => {
       console.error('Error writing PDF:', error);
-      res.status(500).json({ message: 'Ошибка при создании PDF' });
+      res.status(500).json({ message: req.t('resume.pdfCreateError') });
     });
 
   } catch (error) {
     console.error('Error generating PDF:', error);
-    res.status(500).json({ message: 'Ошибка при генерации PDF' });
+    res.status(500).json({ message: req.t('resume.pdfGenerateError') });
   }
 });
 
@@ -321,23 +332,23 @@ router.get('/:id/download-pdf', async (req, res) => {
     const resume = await Resume.findByPk(req.params.id);
 
     if (!resume) {
-      return res.status(404).json({ message: 'Резюме не найдено' });
+      return res.status(404).json({ message: req.t('resume.notFound') });
     }
 
     if (!resume.pdfUrl) {
-      return res.status(404).json({ message: 'PDF файл не найден' });
+      return res.status(404).json({ message: req.t('resume.pdfNotFound') });
     }
 
     const filePath = path.join(__dirname, '..', resume.pdfUrl);
 
     if (!fs.existsSync(filePath)) {
-      return res.status(404).json({ message: 'Файл не существует' });
+      return res.status(404).json({ message: req.t('resume.fileNotExists') });
     }
 
     res.download(filePath, `resume_${resume.id}.pdf`);
   } catch (error) {
     console.error('Error downloading PDF:', error);
-    res.status(500).json({ message: 'Ошибка при скачивании PDF' });
+    res.status(500).json({ message: req.t('resume.pdfDownloadError') });
   }
 });
 

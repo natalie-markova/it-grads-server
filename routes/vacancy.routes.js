@@ -64,11 +64,11 @@ router.get('/', cacheMiddleware(300), async (req, res) => {
     res.json(vacancies);
   } catch (error) {
     console.error('Error fetching vacancies:', error);
-    res.status(500).json({ message: 'Ошибка при получении вакансий' });
+    res.status(500).json({ message: req.t('vacancy.fetchError') });
   }
 });
 
-// GET /api/vacancies/recommended/:userId - Получить рекомендованные вакансии на основе навыков, карты специальностей и пути обучения
+// GET /api/vacancies/recommended/:userId - Получить рекомендованные вакансии на основе навыков, карты развития и пути обучения
 router.get('/recommended/:userId', cacheMiddleware(300), async (req, res) => {
   try {
     const { Resume, RoadmapProgress, Roadmap } = db;
@@ -294,7 +294,7 @@ router.get('/recommended/:userId', cacheMiddleware(300), async (req, res) => {
     res.json(vacanciesWithScore);
   } catch (error) {
     console.error('Error fetching recommended vacancies:', error);
-    res.status(500).json({ message: 'Ошибка при получении рекомендованных вакансий' });
+    res.status(500).json({ message: req.t('vacancy.recommendedError') });
   }
 });
 
@@ -310,13 +310,13 @@ router.get('/:id', cacheMiddleware(600), async (req, res) => {
     });
 
     if (!vacancy) {
-      return res.status(404).json({ message: 'Вакансия не найдена' });
+      return res.status(404).json({ message: req.t('vacancy.notFound') });
     }
 
     res.json(vacancy);
   } catch (error) {
     console.error('Error fetching vacancy:', error);
-    res.status(500).json({ message: 'Ошибка при получении вакансии' });
+    res.status(500).json({ message: req.t('vacancy.fetchOneError') });
   }
 });
 
@@ -331,7 +331,7 @@ router.get('/employer/:employerId', cacheMiddleware(300), async (req, res) => {
     res.json(vacancies);
   } catch (error) {
     console.error('Error fetching employer vacancies:', error);
-    res.status(500).json({ message: 'Ошибка при получении вакансий работодателя' });
+    res.status(500).json({ message: req.t('vacancy.fetchEmployerError') });
   }
 });
 
@@ -357,7 +357,7 @@ router.post('/', verifyToken, async (req, res) => {
     res.status(201).json(vacancy);
   } catch (error) {
     console.error('Error creating vacancy:', error);
-    res.status(500).json({ message: 'Ошибка при создании вакансии' });
+    res.status(500).json({ message: req.t('vacancy.createError') });
   }
 });
 
@@ -367,11 +367,11 @@ router.put('/:id', verifyToken, async (req, res) => {
     const vacancy = await Vacancy.findByPk(req.params.id);
 
     if (!vacancy) {
-      return res.status(404).json({ message: 'Вакансия не найдена' });
+      return res.status(404).json({ message: req.t('vacancy.notFound') });
     }
 
     if (vacancy.employerId !== req.user.id) {
-      return res.status(403).json({ message: 'Нет доступа' });
+      return res.status(403).json({ message: req.t('vacancy.accessDenied') });
     }
 
     const { title, description, requirements, salary, location, employmentType, isActive } = req.body;
@@ -392,7 +392,7 @@ router.put('/:id', verifyToken, async (req, res) => {
     res.json(vacancy);
   } catch (error) {
     console.error('Error updating vacancy:', error);
-    res.status(500).json({ message: 'Ошибка при обновлении вакансии' });
+    res.status(500).json({ message: req.t('vacancy.updateError') });
   }
 });
 
@@ -402,11 +402,11 @@ router.delete('/:id', verifyToken, async (req, res) => {
     const vacancy = await Vacancy.findByPk(req.params.id);
 
     if (!vacancy) {
-      return res.status(404).json({ message: 'Вакансия не найдена' });
+      return res.status(404).json({ message: req.t('vacancy.notFound') });
     }
 
     if (vacancy.employerId !== req.user.id) {
-      return res.status(403).json({ message: 'Нет доступа' });
+      return res.status(403).json({ message: req.t('vacancy.accessDenied') });
     }
 
     await vacancy.destroy();
@@ -414,10 +414,10 @@ router.delete('/:id', verifyToken, async (req, res) => {
     // Инвалидируем кэш вакансий при удалении
     await invalidateCache(`cache:/api/vacancies*`);
 
-    res.json({ message: 'Вакансия удалена' });
+    res.json({ message: req.t('vacancy.deleted') });
   } catch (error) {
     console.error('Error deleting vacancy:', error);
-    res.status(500).json({ message: 'Ошибка при удалении вакансии' });
+    res.status(500).json({ message: req.t('vacancy.deleteError') });
   }
 });
 
@@ -427,11 +427,11 @@ router.patch('/:id/toggle', verifyToken, async (req, res) => {
     const vacancy = await Vacancy.findByPk(req.params.id);
 
     if (!vacancy) {
-      return res.status(404).json({ message: 'Вакансия не найдена' });
+      return res.status(404).json({ message: req.t('vacancy.notFound') });
     }
 
     if (vacancy.employerId !== req.user.id) {
-      return res.status(403).json({ message: 'Нет доступа' });
+      return res.status(403).json({ message: req.t('vacancy.accessDenied') });
     }
 
     await vacancy.update({
@@ -444,7 +444,7 @@ router.patch('/:id/toggle', verifyToken, async (req, res) => {
     res.json(vacancy);
   } catch (error) {
     console.error('Error toggling vacancy status:', error);
-    res.status(500).json({ message: 'Ошибка при изменении статуса вакансии' });
+    res.status(500).json({ message: req.t('vacancy.toggleError') });
   }
 });
 

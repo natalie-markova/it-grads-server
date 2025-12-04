@@ -1,0 +1,142 @@
+{
+  "auth": {
+    "allFieldsRequired": "All fields are required",
+    "invalidRole": "Invalid user role",
+    "emailExists": "User with this email already exists",
+    "registrationError": "Registration error occurred",
+    "emailPasswordRequired": "Email and password are required",
+    "invalidCredentials": "Invalid email or password",
+    "loginError": "Login error occurred",
+    "refreshTokenMissing": "Refresh token is missing",
+    "userNotFound": "User not found",
+    "invalidRefreshToken": "Invalid refresh token",
+    "currentPasswordRequired": "Current password and new password are required",
+    "passwordMinLength": "New password must be at least 8 characters",
+    "invalidCurrentPassword": "Invalid current password",
+    "passwordChanged": "Password changed successfully",
+    "passwordChangeError": "Error changing password"
+  },
+  "vacancy": {
+    "fetchError": "Error fetching vacancies",
+    "notFound": "Vacancy not found",
+    "fetchOneError": "Error fetching vacancy",
+    "fetchEmployerError": "Error fetching employer vacancies",
+    "createError": "Error creating vacancy",
+    "accessDenied": "Access denied",
+    "updateError": "Error updating vacancy",
+    "deleted": "Vacancy deleted",
+    "deleteError": "Error deleting vacancy",
+    "toggleError": "Error toggling vacancy status",
+    "recommendedError": "Error fetching recommended vacancies"
+  },
+  "application": {
+    "alreadyApplied": "You have already applied to this vacancy",
+    "createError": "Error creating application",
+    "fetchError": "Error fetching applications",
+    "notFound": "Application not found",
+    "accessDenied": "Access denied",
+    "invalidStatus": "Invalid status",
+    "updateError": "Error updating application status",
+    "deleted": "Application deleted",
+    "deleteError": "Error deleting application",
+    "employerOnly": "Available for employers only"
+  },
+  "resume": {
+    "notFound": "Resume not found",
+    "fetchError": "Error fetching resume",
+    "createError": "Error creating resume",
+    "updateError": "Error updating resume",
+    "deleteError": "Error deleting resume",
+    "accessDenied": "Access denied to resume",
+    "deleted": "Resume deleted",
+    "pdfNotFound": "PDF file not found",
+    "fileNotExists": "File does not exist",
+    "pdfDownloadError": "Error downloading PDF",
+    "pdfGenerated": "PDF generated successfully",
+    "pdfGenerateError": "Error generating PDF",
+    "pdfCreateError": "Error creating PDF"
+  },
+  "interview": {
+    "notFound": "Interview not found",
+    "fetchError": "Error fetching interviews",
+    "createError": "Error creating interview",
+    "updateError": "Error updating interview",
+    "deleteError": "Error deleting interview",
+    "sessionNotFound": "Interview session not found",
+    "sessionError": "Session error",
+    "deleted": "Interview session deleted successfully",
+    "missingFields": "Missing required fields: direction, technologies, level",
+    "missingAudioFields": "Missing required fields: interviewerPersona, position",
+    "invalidPersona": "Invalid interviewer persona",
+    "textRequired": "Text is required",
+    "textTooLong": "Text too long. Maximum 5000 characters.",
+    "answerRequired": "Answer content is required",
+    "messageRequired": "Message content is required",
+    "ttsError": "Failed to synthesize speech"
+  },
+  "roadmap": {
+    "notFound": "Roadmap not found",
+    "fetchError": "Error fetching roadmaps",
+    "progressError": "Error updating progress",
+    "progressSaved": "Progress saved",
+    "progressReset": "Progress reset"
+  },
+  "skills": {
+    "fetchError": "Error fetching skills",
+    "updateError": "Error updating skills",
+    "saved": "Skills saved"
+  },
+  "chat": {
+    "notFound": "Chat not found",
+    "fetchError": "Error fetching chats",
+    "createError": "Error creating chat",
+    "messageError": "Error sending message",
+    "accessDenied": "Access denied to chat",
+    "noOtherUserId": "Other user ID not specified",
+    "cannotChatWithSelf": "Cannot create chat with yourself",
+    "emptyMessage": "Message cannot be empty",
+    "messagesMarkedRead": "Messages marked as read",
+    "statusUpdateError": "Error updating message status",
+    "unreadCountError": "Error fetching unread messages",
+    "deleted": "Chat successfully deleted",
+    "deleteError": "Error deleting chat"
+  },
+  "user": {
+    "notFound": "User not found",
+    "fetchError": "Error fetching users",
+    "updateError": "Error updating user",
+    "deleteError": "Error deleting user",
+    "profileUpdated": "Profile updated",
+    "avatarUpdated": "Avatar updated",
+    "avatarError": "Error uploading avatar"
+  },
+  "favorite": {
+    "added": "Added to favorites",
+    "removed": "Removed from favorites",
+    "error": "Error with favorites",
+    "fetchError": "Error fetching favorites"
+  },
+  "review": {
+    "notFound": "Review not found",
+    "fetchError": "Error fetching reviews",
+    "createError": "Error creating review",
+    "updateError": "Error updating review",
+    "deleteError": "Error deleting review",
+    "accessDenied": "Access denied",
+    "deleted": "Review deleted"
+  },
+  "codebattle": {
+    "notFound": "Battle not found",
+    "fetchError": "Error fetching battles",
+    "createError": "Error creating battle",
+    "joinError": "Error joining battle"
+  },
+  "common": {
+    "serverError": "Internal server error",
+    "unauthorized": "Authorization required",
+    "forbidden": "Access forbidden",
+    "notFound": "Not found",
+    "badRequest": "Bad request",
+    "success": "Success"
+  }
+}

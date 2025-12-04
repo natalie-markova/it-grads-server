@@ -14,16 +14,16 @@ router.post('/register', async (req, res) => {
     const { username, email, password, role } = req.body;
 
     if (!username || !email || !password || !role) {
-      return res.status(400).json({ error: 'Все поля обязательны для заполнения' });
+      return res.status(400).json({ error: req.t('auth.allFieldsRequired') });
     }
 
     if (!validRoles.includes(role)) {
-      return res.status(400).json({ error: 'Неверная роль пользователя' });
+      return res.status(400).json({ error: req.t('auth.invalidRole') });
     }
 
     const exists = await User.findOne({ where: { email } });
     if (exists) {
-      return res.status(409).json({ error: 'Пользователь с таким email уже существует' });
+      return res.status(409).json({ error: req.t('auth.emailExists') });
     }
 
     const hashedPassword = await bcrypt.hash(password, 10);
@@ -57,7 +57,7 @@ router.post('/register', async (req, res) => {
       });
   } catch (e) {
     console.error('register:', e);
-    res.status(500).json({ error: 'Произошла ошибка при регистрации' });
+    res.status(500).json({ error: req.t('auth.registrationError') });
   }
 });
 
@@ -65,17 +65,17 @@ router.post('/login', async (req, res) => {
   try {
     const { email, password } = req.body;
     if (!email || !password) {
-      return res.status(400).json({ error: 'Email и пароль обязательны' });
+      return res.status(400).json({ error: req.t('auth.emailPasswordRequired') });
     }
 
     const user = await User.findOne({ where: { email } });
     if (!user) {
-      return res.status(401).json({ error: 'Неверный email или пароль' });
+      return res.status(401).json({ error: req.t('auth.invalidCredentials') });
     }
 
     const isPasswordValid = await bcrypt.compare(password, user.password);
     if (!isPasswordValid) {
-      return res.status(401).json({ error: 'Неверный email или пароль' });
+      return res.status(401).json({ error: req.t('auth.invalidCredentials') });
     }
 
     const { accessToken, refreshToken } = generate(user.id);
@@ -99,27 +99,26 @@ router.post('/login', async (req, res) => {
       });
   } catch (e) {
     console.error('login:', e);
-    res.status(500).json({ error: 'Произошла ошибка при входе' });
+    res.status(500).json({ error: req.t('auth.loginError') });
   }
 });
 
 const refreshHandler = async (req, res) => {
   const refreshToken = req.cookies.refreshToken;
   if (!refreshToken) {
-    return res.status(401).json({ message: 'refreshToken doesnt exist' });
+    return res.status(401).json({ message: req.t('auth.refreshTokenMissing') });
   }
 
   try {
     const { userId } = jwt.verify(refreshToken, process.env.JWT_REFRESH_SECRET || process.env.JWT_SECRET);
     const { accessToken, refreshToken: newRefresh } = generate(userId);
 
-    // Получаем данные пользователя
     const user = await User.findByPk(userId, {
       attributes: ['id', 'username', 'email', 'role']
     });
 
     if (!user) {
-      return res.status(401).json({ message: 'User not found' });
+      return res.status(401).json({ message: req.t('auth.userNotFound') });
     }
 
     res
@@ -140,7 +139,7 @@ const refreshHandler = async (req, res) => {
         }
       });
   } catch (e) {
-    return res.status(401).json({ message: 'Invalid refresh token' });
+    return res.status(401).json({ message: req.t('auth.invalidRefreshToken') });
   }
 };
 
@@ -170,16 +169,16 @@ router.post('/registration', async (req, res) => {
     const { username, email, password, role } = req.body;
 
     if (!username || !email || !password || !role) {
-      return res.status(400).json({ error: 'Все поля обязательны для заполнения' });
+      return res.status(400).json({ error: req.t('auth.allFieldsRequired') });
     }
 
     if (!validRoles.includes(role)) {
-      return res.status(400).json({ error: 'Неверная роль пользователя' });
+      return res.status(400).json({ error: req.t('auth.invalidRole') });
     }
 
     const exists = await User.findOne({ where: { email } });
     if (exists) {
-      return res.status(409).json({ error: 'Пользователь с таким email уже существует' });
+      return res.status(409).json({ error: req.t('auth.emailExists') });
     }
 
     const hashedPassword = await bcrypt.hash(password, 10);
@@ -212,7 +211,7 @@ router.post('/registration', async (req, res) => {
       });
   } catch (e) {
     console.error('registration:', e);
-    res.status(500).json({ error: 'Произошла ошибка при регистрации' });
+    res.status(500).json({ error: req.t('auth.registrationError') });
   }
 });
 
@@ -221,39 +220,34 @@ router.put('/change-password', verifyToken, async (req, res) => {
   try {
     const { currentPassword, newPassword } = req.body;
 
-    // Валидация
     if (!currentPassword || !newPassword) {
-      return res.status(400).json({ error: 'Текущий пароль и новый пароль обязательны' });
+      return res.status(400).json({ error: req.t('auth.currentPasswordRequired') });
     }
 
     if (newPassword.length < 8) {
-      return res.status(400).json({ error: 'Новый пароль должен быть не менее 8 символов' });
+      return res.status(400).json({ error: req.t('auth.passwordMinLength') });
     }
 
-    // Получаем пользователя
     const user = await User.findByPk(req.user.id);
 
     if (!user) {
-      return res.status(404).json({ error: 'Пользователь не найден' });
+      return res.status(404).json({ error: req.t('auth.userNotFound') });
     }
 
-    // Проверяем текущий пароль
     const isCurrentPasswordValid = await bcrypt.compare(currentPassword, user.password);
 
     if (!isCurrentPasswordValid) {
-      return res.status(401).json({ error: 'Неверный текущий пароль' });
+      return res.status(401).json({ error: req.t('auth.invalidCurrentPassword') });
     }
 
-    // Хешируем новый пароль
     const hashedPassword = await bcrypt.hash(newPassword, 10);
 
-    // Обновляем пароль
     await user.update({ password: hashedPassword });
 
-    res.json({ message: 'Пароль успешно изменен' });
+    res.json({ message: req.t('auth.passwordChanged') });
   } catch (e) {
     console.error('change-password:', e);
-    res.status(500).json({ error: 'Произошла ошибка при смене пароля' });
+    res.status(500).json({ error: req.t('auth.passwordChangeError') });
   }
 });
 

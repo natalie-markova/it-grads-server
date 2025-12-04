@@ -3,6 +3,11 @@ const router = express.Router();
 const { Roadmap, RoadmapProgress } = require('../db/models');
 const { cacheMiddleware } = require('../middleware/cacheMiddleware');
 const verifyToken = require('../middleware/verifyToken');
+const skillAggregator = require('../services/skillAggregator.service');
+const { i18nMiddleware } = require('../config/i18n');
+
+// Apply i18n middleware to all routes
+router.use(i18nMiddleware);
 
 // GET /api/roadmaps - Get all roadmaps
 router.get('/', cacheMiddleware(900), async (req, res) => {
@@ -21,10 +26,12 @@ router.get('/', cacheMiddleware(900), async (req, res) => {
       ]
     });
 
-    res.json(roadmaps);
+    // Return localized data based on request language
+    const localizedRoadmaps = roadmaps.map(r => r.getLocalized(req.lang));
+    res.json(localizedRoadmaps);
   } catch (error) {
     console.error('Error fetching roadmaps:', error);
-    res.status(500).json({ error: 'Ошибка при получении карт специальностей' });
+    res.status(500).json({ error: req.t('roadmap.fetchError') });
   }
 });
 
@@ -38,13 +45,14 @@ router.get('/:slug', cacheMiddleware(900), async (req, res) => {
     });
 
     if (!roadmap) {
-      return res.status(404).json({ error: 'Карта специальности не найдена' });
+      return res.status(404).json({ error: req.t('roadmap.notFound') });
     }
 
-    res.json(roadmap);
+    // Return localized data
+    res.json(roadmap.getLocalized(req.lang));
   } catch (error) {
     console.error('Error fetching roadmap:', error);
-    res.status(500).json({ error: 'Ошибка при получении карты специальности' });
+    res.status(500).json({ error: req.t('roadmap.fetchError') });
   }
 });
 
@@ -59,7 +67,7 @@ router.get('/categories/list', cacheMiddleware(900), async (req, res) => {
     res.json(categories.map(c => c.category));
   } catch (error) {
     console.error('Error fetching categories:', error);
-    res.status(500).json({ error: 'Ошибка при получении категорий' });
+    res.status(500).json({ error: req.t('roadmap.fetchError') });
   }
 });
 
@@ -79,7 +87,7 @@ router.get('/progress/all', verifyToken, async (req, res) => {
     res.json(progress);
   } catch (error) {
     console.error('Error fetching all progress:', error);
-    res.status(500).json({ error: 'Ошибка при получении прогресса' });
+    res.status(500).json({ error: req.t('roadmap.progressError') });
   }
 });
 
@@ -90,7 +98,7 @@ router.get('/:slug/progress', verifyToken, async (req, res) => {
 
     const roadmap = await Roadmap.findOne({ where: { slug } });
     if (!roadmap) {
-      return res.status(404).json({ error: 'Карта специальности не найдена' });
+      return res.status(404).json({ error: req.t('roadmap.notFound') });
     }
 
     const progress = await RoadmapProgress.findOne({
@@ -113,7 +121,7 @@ router.get('/:slug/progress', verifyToken, async (req, res) => {
     res.json(progress);
   } catch (error) {
     console.error('Error fetching progress:', error);
-    res.status(500).json({ error: 'Ошибка при получении прогресса' });
+    res.status(500).json({ error: req.t('roadmap.progressError') });
   }
 });
 
@@ -125,7 +133,7 @@ router.post('/:slug/progress', verifyToken, async (req, res) => {
 
     const roadmap = await Roadmap.findOne({ where: { slug } });
     if (!roadmap) {
-      return res.status(404).json({ error: 'Карта специальности не найдена' });
+      return res.status(404).json({ error: req.t('roadmap.notFound') });
     }
 
     const totalSteps = roadmap.learningPath?.length || 0;
@@ -164,13 +172,16 @@ router.post('/:slug/progress', verifyToken, async (req, res) => {
       });
     }
 
+    // Триггерим пересчёт радара навыков (асинхронно)
+    skillAggregator.triggerRecalculation(req.user.id, 'roadmap');
+
     res.json({
-      message: 'Прогресс сохранён',
+      message: req.t('roadmap.progressSaved'),
       progress: progress
     });
   } catch (error) {
     console.error('Error saving progress:', error);
-    res.status(500).json({ error: 'Ошибка при сохранении прогресса' });
+    res.status(500).json({ error: req.t('roadmap.progressError') });
   }
 });
 
@@ -181,7 +192,7 @@ router.delete('/:slug/progress', verifyToken, async (req, res) => {
 
     const roadmap = await Roadmap.findOne({ where: { slug } });
     if (!roadmap) {
-      return res.status(404).json({ error: 'Карта специальности не найдена' });
+      return res.status(404).json({ error: req.t('roadmap.notFound') });
     }
 
     await RoadmapProgress.destroy({
@@ -191,10 +202,10 @@ router.delete('/:slug/progress', verifyToken, async (req, res) => {
       }
     });
 
-    res.json({ message: 'Прогресс сброшен' });
+    res.json({ message: req.t('roadmap.progressReset') });
   } catch (error) {
     console.error('Error resetting progress:', error);
-    res.status(500).json({ error: 'Ошибка при сбросе прогресса' });
+    res.status(500).json({ error: req.t('roadmap.progressError') });
   }
 });
 

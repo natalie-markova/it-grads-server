@@ -16,7 +16,7 @@ router.get('/count', async (req, res) => {
     res.json({ count });
   } catch (error) {
     console.error('Error getting user count:', error);
-    res.status(500).json({ message: 'Ошибка при получении количества пользователей' });
+    res.status(500).json({ message: req.t('user.fetchError') });
   }
 });
 
@@ -39,12 +39,12 @@ router.get('/profile', authMiddleware, cacheMiddleware(600), async (req, res) =>
   try {
     const user = await getUserProfile(req.userId);
     if (!user) {
-      return res.status(404).json({ message: 'Пользователь не найден' });
+      return res.status(404).json({ message: req.t('user.notFound') });
     }
     res.json(user);
   } catch (e) {
     console.error('Profile error:', e);
-    res.status(500).json({ message: 'Ошибка сервера' });
+    res.status(500).json({ message: req.t('common.serverError') });
   }
 });
 
@@ -53,7 +53,7 @@ router.get('/employer/:id', cacheMiddleware(600), async (req, res) => {
   try {
     const employerId = Number(req.params.id);
     if (isNaN(employerId)) {
-      return res.status(400).json({ message: 'Неверный id работодателя' });
+      return res.status(400).json({ message: req.t('common.badRequest') });
     }
 
     const employer = await User.findOne({
@@ -68,13 +68,13 @@ router.get('/employer/:id', cacheMiddleware(600), async (req, res) => {
     });
 
     if (!employer) {
-      return res.status(404).json({ message: 'Работодатель не найден' });
+      return res.status(404).json({ message: req.t('user.notFound') });
     }
 
     res.json(employer);
   } catch (e) {
     console.error('Employer profile error:', e);
-    res.status(500).json({ message: 'Ошибка сервера' });
+    res.status(500).json({ message: req.t('common.serverError') });
   }
 });
 
@@ -123,36 +123,33 @@ router.put('/profile', authMiddleware, async (req, res) => {
 router.post('/upload-avatar', authMiddleware, uploadAvatar.single('avatar'), async (req, res) => {
   try {
     if (!req.file) {
-      return res.status(400).json({ error: 'Файл не был загружен' });
+      return res.status(400).json({ error: req.t('common.badRequest') });
     }
 
     const user = await User.findByPk(req.userId);
     if (!user) {
-      return res.status(404).json({ error: 'Пользователь не найден' });
+      return res.status(404).json({ error: req.t('user.notFound') });
     }
 
-    // Сохраняем путь к файлу в БД
     const avatarUrl = `/uploads/avatars/${req.file.filename}`;
     const updateData = { avatar: avatarUrl };
-    
-    // Если это выпускник, также обновляем поле photo
+
     if (user.role === 'graduate') {
       updateData.photo = avatarUrl;
     }
-    
+
     await user.update(updateData);
 
-    // Инвалидируем кэш профиля
     await invalidateCache(`cache:/api/users/*`);
 
     res.json({
-      message: 'Аватар успешно загружен',
+      message: req.t('user.avatarUpdated'),
       avatar: avatarUrl,
       photo: user.role === 'graduate' ? avatarUrl : undefined
     });
   } catch (error) {
     console.error('Upload avatar error:', error);
-    res.status(500).json({ error: 'Ошибка при загрузке аватара' });
+    res.status(500).json({ error: req.t('user.avatarError') });
   }
 });
 
@@ -218,18 +215,17 @@ router.delete('/profile', authMiddleware, async (req, res) => {
   try {
     const user = await User.findByPk(req.userId);
     if (!user) {
-      return res.status(404).json({ error: 'Пользователь не найден' });
+      return res.status(404).json({ error: req.t('user.notFound') });
     }
 
     await user.destroy();
 
-    // Инвалидируем кэш
     await invalidateCache(`cache:/api/users/*`);
 
-    res.json({ message: 'Профиль успешно удален' });
+    res.json({ message: req.t('user.profileUpdated') });
   } catch (error) {
     console.error('Delete profile error:', error);
-    res.status(500).json({ error: 'Ошибка при удалении профиля' });
+    res.status(500).json({ error: req.t('user.deleteError') });
   }
 });
 

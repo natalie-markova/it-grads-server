@@ -1,0 +1,142 @@
+{
+  "auth": {
+    "allFieldsRequired": "Все поля обязательны для заполнения",
+    "invalidRole": "Неверная роль пользователя",
+    "emailExists": "Пользователь с таким email уже существует",
+    "registrationError": "Произошла ошибка при регистрации",
+    "emailPasswordRequired": "Email и пароль обязательны",
+    "invalidCredentials": "Неверный email или пароль",
+    "loginError": "Произошла ошибка при входе",
+    "refreshTokenMissing": "Токен обновления отсутствует",
+    "userNotFound": "Пользователь не найден",
+    "invalidRefreshToken": "Неверный токен обновления",
+    "currentPasswordRequired": "Текущий пароль и новый пароль обязательны",
+    "passwordMinLength": "Новый пароль должен быть не менее 8 символов",
+    "invalidCurrentPassword": "Неверный текущий пароль",
+    "passwordChanged": "Пароль успешно изменен",
+    "passwordChangeError": "Произошла ошибка при смене пароля"
+  },
+  "vacancy": {
+    "fetchError": "Ошибка при получении вакансий",
+    "notFound": "Вакансия не найдена",
+    "fetchOneError": "Ошибка при получении вакансии",
+    "fetchEmployerError": "Ошибка при получении вакансий работодателя",
+    "createError": "Ошибка при создании вакансии",
+    "accessDenied": "Нет доступа",
+    "updateError": "Ошибка при обновлении вакансии",
+    "deleted": "Вакансия удалена",
+    "deleteError": "Ошибка при удалении вакансии",
+    "toggleError": "Ошибка при изменении статуса вакансии",
+    "recommendedError": "Ошибка при получении рекомендованных вакансий"
+  },
+  "application": {
+    "alreadyApplied": "Вы уже откликнулись на эту вакансию",
+    "createError": "Ошибка при создании отклика",
+    "fetchError": "Ошибка при получении откликов",
+    "notFound": "Отклик не найден",
+    "accessDenied": "Нет доступа",
+    "invalidStatus": "Неверный статус",
+    "updateError": "Ошибка при обновлении статуса отклика",
+    "deleted": "Отклик удален",
+    "deleteError": "Ошибка при удалении отклика",
+    "employerOnly": "Доступно только работодателям"
+  },
+  "resume": {
+    "notFound": "Резюме не найдено",
+    "fetchError": "Ошибка при получении резюме",
+    "createError": "Ошибка при создании резюме",
+    "updateError": "Ошибка при обновлении резюме",
+    "deleteError": "Ошибка при удалении резюме",
+    "accessDenied": "Нет доступа к резюме",
+    "deleted": "Резюме удалено",
+    "pdfNotFound": "PDF файл не найден",
+    "fileNotExists": "Файл не существует",
+    "pdfDownloadError": "Ошибка при скачивании PDF",
+    "pdfGenerated": "PDF успешно сгенерирован",
+    "pdfGenerateError": "Ошибка при генерации PDF",
+    "pdfCreateError": "Ошибка при создании PDF"
+  },
+  "interview": {
+    "notFound": "Интервью не найдено",
+    "fetchError": "Ошибка при получении интервью",
+    "createError": "Ошибка при создании интервью",
+    "updateError": "Ошибка при обновлении интервью",
+    "deleteError": "Ошибка при удалении интервью",
+    "sessionNotFound": "Сессия интервью не найдена",
+    "sessionError": "Ошибка при работе с сессией",
+    "deleted": "Сессия интервью успешно удалена",
+    "missingFields": "Отсутствуют обязательные поля: direction, technologies, level",
+    "missingAudioFields": "Отсутствуют обязательные поля: interviewerPersona, position",
+    "invalidPersona": "Неверная персона интервьюера",
+    "textRequired": "Текст обязателен",
+    "textTooLong": "Текст слишком длинный. Максимум 5000 символов.",
+    "answerRequired": "Требуется содержание ответа",
+    "messageRequired": "Требуется содержание сообщения",
+    "ttsError": "Ошибка синтеза речи"
+  },
+  "roadmap": {
+    "notFound": "Роадмап не найден",
+    "fetchError": "Ошибка при получении роадмапов",
+    "progressError": "Ошибка при обновлении прогресса",
+    "progressSaved": "Прогресс сохранен",
+    "progressReset": "Прогресс сброшен"
+  },
+  "skills": {
+    "fetchError": "Ошибка при получении навыков",
+    "updateError": "Ошибка при обновлении навыков",
+    "saved": "Навыки сохранены"
+  },
+  "chat": {
+    "notFound": "Чат не найден",
+    "fetchError": "Ошибка при получении чатов",
+    "createError": "Ошибка при создании чата",
+    "messageError": "Ошибка при отправке сообщения",
+    "accessDenied": "Нет доступа к чату",
+    "noOtherUserId": "Не указан ID собеседника",
+    "cannotChatWithSelf": "Нельзя создать чат с самим собой",
+    "emptyMessage": "Сообщение не может быть пустым",
+    "messagesMarkedRead": "Сообщения отмечены как прочитанные",
+    "statusUpdateError": "Ошибка при обновлении статуса сообщений",
+    "unreadCountError": "Ошибка при получении непрочитанных сообщений",
+    "deleted": "Чат успешно удален",
+    "deleteError": "Ошибка при удалении чата"
+  },
+  "user": {
+    "notFound": "Пользователь не найден",
+    "fetchError": "Ошибка при получении пользователей",
+    "updateError": "Ошибка при обновлении пользователя",
+    "deleteError": "Ошибка при удалении пользователя",
+    "profileUpdated": "Профиль обновлен",
+    "avatarUpdated": "Аватар обновлен",
+    "avatarError": "Ошибка при загрузке аватара"
+  },
+  "favorite": {
+    "added": "Добавлено в избранное",
+    "removed": "Удалено из избранного",
+    "error": "Ошибка при работе с избранным",
+    "fetchError": "Ошибка при получении избранного"
+  },
+  "review": {
+    "notFound": "Отзыв не найден",
+    "fetchError": "Ошибка при получении отзывов",
+    "createError": "Ошибка при создании отзыва",
+    "updateError": "Ошибка при обновлении отзыва",
+    "deleteError": "Ошибка при удалении отзыва",
+    "accessDenied": "Нет доступа",
+    "deleted": "Отзыв удален"
+  },
+  "codebattle": {
+    "notFound": "Батл не найден",
+    "fetchError": "Ошибка при получении батлов",
+    "createError": "Ошибка при создании батла",
+    "joinError": "Ошибка при присоединении к батлу"
+  },
+  "common": {
+    "serverError": "Внутренняя ошибка сервера",
+    "unauthorized": "Необходима авторизация",
+    "forbidden": "Доступ запрещен",
+    "notFound": "Не найдено",
+    "badRequest": "Некорректный запрос",
+    "success": "Успешно"
+  }
+}

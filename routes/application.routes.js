@@ -10,22 +10,19 @@ router.post('/', verifyToken, async (req, res) => {
     const { vacancyId, coverLetter } = req.body;
     const userId = req.user.id;
 
-    // Проверяем, существует ли вакансия
     const vacancy = await Vacancy.findByPk(vacancyId);
     if (!vacancy) {
-      return res.status(404).json({ error: 'Вакансия не найдена' });
+      return res.status(404).json({ error: req.t('vacancy.notFound') });
     }
 
-    // Проверяем, не откликался ли пользователь уже на эту вакансию
     const existingApplication = await Application.findOne({
       where: { vacancyId, userId }
     });
 
     if (existingApplication) {
-      return res.status(400).json({ error: 'Вы уже откликнулись на эту вакансию' });
+      return res.status(400).json({ error: req.t('application.alreadyApplied') });
     }
 
-    // Создаем отклик
     const application = await Application.create({
       vacancyId,
       userId,
@@ -36,7 +33,7 @@ router.post('/', verifyToken, async (req, res) => {
     res.status(201).json(application);
   } catch (error) {
     console.error('Error creating application:', error);
-    res.status(500).json({ error: 'Ошибка при создании отклика' });
+    res.status(500).json({ error: req.t('application.createError') });
   }
 });
 
@@ -62,7 +59,7 @@ router.get('/my', verifyToken, async (req, res) => {
     res.json(applications);
   } catch (error) {
     console.error('Error fetching user applications:', error);
-    res.status(500).json({ error: 'Ошибка при получении откликов' });
+    res.status(500).json({ error: req.t('application.fetchError') });
   }
 });
 
@@ -71,14 +68,13 @@ router.get('/vacancy/:vacancyId', verifyToken, async (req, res) => {
   try {
     const { vacancyId } = req.params;
 
-    // Проверяем, что вакансия принадлежит текущему пользователю
     const vacancy = await Vacancy.findByPk(vacancyId);
     if (!vacancy) {
-      return res.status(404).json({ error: 'Вакансия не найдена' });
+      return res.status(404).json({ error: req.t('vacancy.notFound') });
     }
 
     if (vacancy.employerId !== req.user.id) {
-      return res.status(403).json({ error: 'Нет доступа' });
+      return res.status(403).json({ error: req.t('application.accessDenied') });
     }
 
     const applications = await Application.findAll({
@@ -102,7 +98,7 @@ router.get('/vacancy/:vacancyId', verifyToken, async (req, res) => {
     res.json(applications);
   } catch (error) {
     console.error('Error fetching vacancy applications:', error);
-    res.status(500).json({ error: 'Ошибка при получении откликов' });
+    res.status(500).json({ error: req.t('application.fetchError') });
   }
 });
 
@@ -110,10 +106,10 @@ router.get('/vacancy/:vacancyId', verifyToken, async (req, res) => {
 router.get('/employer/all', verifyToken, async (req, res) => {
   try {
     console.log('GET /api/applications/employer/all - User:', req.user.id, 'Role:', req.user.role);
-    
+
     if (req.user.role !== 'employer') {
       console.log('Access denied - user is not employer');
-      return res.status(403).json({ error: 'Доступно только работодателям' });
+      return res.status(403).json({ error: req.t('application.employerOnly') });
     }
 
     // Сначала получаем все вакансии работодателя (включая неактивные, так как отклики могут быть на любые)
@@ -204,7 +200,7 @@ router.get('/employer/all', verifyToken, async (req, res) => {
     res.json(serializedApplications);
   } catch (error) {
     console.error('Error fetching employer applications:', error);
-    res.status(500).json({ error: 'Ошибка при получении откликов' });
+    res.status(500).json({ error: req.t('application.fetchError') });
   }
 });
 
@@ -215,7 +211,7 @@ router.put('/:id/status', verifyToken, async (req, res) => {
     const { status } = req.body;
 
     if (!['pending', 'accepted', 'rejected'].includes(status)) {
-      return res.status(400).json({ error: 'Неверный статус' });
+      return res.status(400).json({ error: req.t('application.invalidStatus') });
     }
 
     const application = await Application.findByPk(id, {
@@ -226,12 +222,11 @@ router.put('/:id/status', verifyToken, async (req, res) => {
     });
 
     if (!application) {
-      return res.status(404).json({ error: 'Отклик не найден' });
+      return res.status(404).json({ error: req.t('application.notFound') });
     }
 
-    // Проверяем, что вакансия принадлежит текущему пользователю
     if (application.vacancy.employerId !== req.user.id) {
-      return res.status(403).json({ error: 'Нет доступа' });
+      return res.status(403).json({ error: req.t('application.accessDenied') });
     }
 
     await application.update({ status });
@@ -239,7 +234,7 @@ router.put('/:id/status', verifyToken, async (req, res) => {
     res.json(application);
   } catch (error) {
     console.error('Error updating application status:', error);
-    res.status(500).json({ error: 'Ошибка при обновлении статуса отклика' });
+    res.status(500).json({ error: req.t('application.updateError') });
   }
 });
 
@@ -249,20 +244,19 @@ router.delete('/:id', verifyToken, async (req, res) => {
     const application = await Application.findByPk(req.params.id);
 
     if (!application) {
-      return res.status(404).json({ error: 'Отклик не найден' });
+      return res.status(404).json({ error: req.t('application.notFound') });
     }
 
-    // Проверяем, что отклик принадлежит текущему пользователю
     if (application.userId !== req.user.id) {
-      return res.status(403).json({ error: 'Нет доступа' });
+      return res.status(403).json({ error: req.t('application.accessDenied') });
     }
 
     await application.destroy();
 
-    res.json({ message: 'Отклик удален' });
+    res.json({ message: req.t('application.deleted') });
   } catch (error) {
     console.error('Error deleting application:', error);
-    res.status(500).json({ error: 'Ошибка при удалении отклика' });
+    res.status(500).json({ error: req.t('application.deleteError') });
   }
 });
 

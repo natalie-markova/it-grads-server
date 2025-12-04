@@ -24,6 +24,7 @@ const cors = require('cors');
 const jwt = require('jsonwebtoken');
 const db = require('./db/models');
 const redisClient = require('./config/redis');
+const { i18nMiddleware } = require('./config/i18n');
 const authRoutes = require('./routes/auth.routes');
 const userRoutes = require('./routes/user.routes');
 const cookieRoutes = require('./routes/cookie.routes');
@@ -36,6 +37,10 @@ const applicationRoutes = require('./routes/application.routes');
 const favoriteRoutes = require('./routes/favorite.routes');
 const reviewRoutes = require('./routes/review.routes');
 const chatRoutes = require('./routes/chat.routes');
+const codeBattleRoutes = require('./routes/codebattle.routes');
+const interviewTrackerRoutes = require('./routes/interviewTracker.routes');
+const codeBattleSocket = require('./services/codeBattleSocket.service');
+const scheduler = require('./services/scheduler.service');
 
 
 
@@ -59,6 +64,7 @@ if (fs.existsSync(path.join(sslPath, 'cert.pem')) && fs.existsSync(path.join(ssl
 app.use(express.json());
 app.use(cookieParser());
 app.use(morgan('dev'));
+app.use(i18nMiddleware);
 
 // Раздача статических файлов (загруженные аватары)
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
@@ -77,7 +83,8 @@ app.use(cors({
     'https://itgrads.ru',
     'http://www.itgrads.ru',
     'http://itgrads.ru',
-    'http://185.55.56.201'
+    'http://185.55.56.201',
+    'https://185.55.56.201'
   ],
   credentials: true,
   methods: ['GET','POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH' ],
@@ -102,6 +109,8 @@ app.use('/api/reviews', reviewRoutes);
 // Маршрут для рейтингов компаний (использует reviewRoutes, но с префиксом /api/companies)
 app.use('/api/companies', reviewRoutes);
 app.use('/api/chats', chatRoutes);
+app.use('/api/codebattle', codeBattleRoutes);
+app.use('/api/interview-tracker', interviewTrackerRoutes);
 
 
 (async () => {
@@ -145,7 +154,8 @@ app.use('/api/chats', chatRoutes);
           'https://itgrads.ru',
           'http://www.itgrads.ru',
           'http://itgrads.ru',
-          'http://185.55.56.201'
+          'http://185.55.56.201',
+          'https://185.55.56.201'
         ],
         credentials: true,
         methods: ['GET', 'POST']
@@ -153,6 +163,14 @@ app.use('/api/chats', chatRoutes);
     });
 
     console.log('✔  WebSocket (Socket.IO) initialized');
+
+    // Инициализация Code Battle WebSocket
+    codeBattleSocket.initialize(io);
+    console.log('✔  Code Battle WebSocket initialized');
+
+    // Запуск планировщика задач (синхронизация Codeforces раз в день)
+    scheduler.start();
+    console.log('✔  Scheduler service started');
 
     // Middleware для аутентификации WebSocket соединений
     io.use((socket, next) => {

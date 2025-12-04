@@ -3,6 +3,10 @@ const router = express.Router();
 const db = require('../db/models');
 const { Chat, Message, User } = db;
 const verifyToken = require('../middleware/verifyToken');
+const { i18nMiddleware } = require('../config/i18n');
+
+// Apply i18n middleware to all routes
+router.use(i18nMiddleware);
 
 // GET /api/chats - Получить все чаты пользователя
 router.get('/', verifyToken, async (req, res) => {
@@ -57,7 +61,7 @@ router.get('/', verifyToken, async (req, res) => {
     res.json(chatsWithUnread);
   } catch (error) {
     console.error('Error fetching chats:', error);
-    res.status(500).json({ message: 'Ошибка при получении чатов' });
+    res.status(500).json({ message: req.t('chat.fetchError') });
   }
 });
 
@@ -90,18 +94,18 @@ router.get('/:id', verifyToken, async (req, res) => {
     });
 
     if (!chat) {
-      return res.status(404).json({ message: 'Чат не найден' });
+      return res.status(404).json({ message: req.t('chat.notFound') });
     }
 
     // Проверка доступа
     if (chat.user1Id !== req.user.id && chat.user2Id !== req.user.id) {
-      return res.status(403).json({ message: 'Нет доступа' });
+      return res.status(403).json({ message: req.t('chat.accessDenied') });
     }
 
     res.json(chat);
   } catch (error) {
     console.error('Error fetching chat:', error);
-    res.status(500).json({ message: 'Ошибка при получении чата' });
+    res.status(500).json({ message: req.t('chat.fetchError') });
   }
 });
 
@@ -112,11 +116,11 @@ router.post('/', verifyToken, async (req, res) => {
     const userId = req.user.id;
 
     if (!otherUserId) {
-      return res.status(400).json({ message: 'Не указан ID собеседника' });
+      return res.status(400).json({ message: req.t('chat.noOtherUserId') });
     }
 
     if (userId === otherUserId) {
-      return res.status(400).json({ message: 'Нельзя создать чат с самим собой' });
+      return res.status(400).json({ message: req.t('chat.cannotChatWithSelf') });
     }
 
     // Проверяем, существует ли уже чат между этими пользователями
@@ -169,7 +173,7 @@ router.post('/', verifyToken, async (req, res) => {
     res.status(201).json(chat);
   } catch (error) {
     console.error('Error creating chat:', error);
-    res.status(500).json({ message: 'Ошибка при создании чата' });
+    res.status(500).json({ message: req.t('chat.createError') });
   }
 });
 
@@ -181,18 +185,18 @@ router.post('/:id/messages', verifyToken, async (req, res) => {
     const userId = req.user.id;
 
     if (!content || !content.trim()) {
-      return res.status(400).json({ message: 'Сообщение не может быть пустым' });
+      return res.status(400).json({ message: req.t('chat.emptyMessage') });
     }
 
     const chat = await Chat.findByPk(chatId);
 
     if (!chat) {
-      return res.status(404).json({ message: 'Чат не найден' });
+      return res.status(404).json({ message: req.t('chat.notFound') });
     }
 
     // Проверка доступа
     if (chat.user1Id !== userId && chat.user2Id !== userId) {
-      return res.status(403).json({ message: 'Нет доступа' });
+      return res.status(403).json({ message: req.t('chat.accessDenied') });
     }
 
     const message = await Message.create({
@@ -217,7 +221,7 @@ router.post('/:id/messages', verifyToken, async (req, res) => {
     res.status(201).json(messageWithSender);
   } catch (error) {
     console.error('Error sending message:', error);
-    res.status(500).json({ message: 'Ошибка при отправке сообщения' });
+    res.status(500).json({ message: req.t('chat.messageError') });
   }
 });
 
@@ -230,12 +234,12 @@ router.put('/:id/read', verifyToken, async (req, res) => {
     const chat = await Chat.findByPk(chatId);
 
     if (!chat) {
-      return res.status(404).json({ message: 'Чат не найден' });
+      return res.status(404).json({ message: req.t('chat.notFound') });
     }
 
     // Проверка доступа
     if (chat.user1Id !== userId && chat.user2Id !== userId) {
-      return res.status(403).json({ message: 'Нет доступа' });
+      return res.status(403).json({ message: req.t('chat.accessDenied') });
     }
 
     // Отмечаем все сообщения от другого пользователя как прочитанные
@@ -256,10 +260,10 @@ router.put('/:id/read', verifyToken, async (req, res) => {
       io.to(`user-${userId}`).emit('messages-read', { chatId });
     }
 
-    res.json({ message: 'Сообщения отмечены как прочитанные' });
+    res.json({ message: req.t('chat.messagesMarkedRead') });
   } catch (error) {
     console.error('Error marking messages as read:', error);
-    res.status(500).json({ message: 'Ошибка при обновлении статуса сообщений' });
+    res.status(500).json({ message: req.t('chat.statusUpdateError') });
   }
 });
 
@@ -319,7 +323,7 @@ router.get('/unread/count', verifyToken, async (req, res) => {
     });
   } catch (error) {
     console.error('Error getting unread count:', error);
-    res.status(500).json({ message: 'Ошибка при получении непрочитанных сообщений' });
+    res.status(500).json({ message: req.t('chat.unreadCountError') });
   }
 });
 
@@ -332,12 +336,12 @@ router.delete('/:id', verifyToken, async (req, res) => {
     const chat = await Chat.findByPk(chatId);
 
     if (!chat) {
-      return res.status(404).json({ message: 'Чат не найден' });
+      return res.status(404).json({ message: req.t('chat.notFound') });
     }
 
     // Проверка доступа
     if (chat.user1Id !== userId && chat.user2Id !== userId) {
-      return res.status(403).json({ message: 'Нет доступа к этому чату' });
+      return res.status(403).json({ message: req.t('chat.accessDenied') });
     }
 
     // Удаляем все сообщения в чате
@@ -348,10 +352,10 @@ router.delete('/:id', verifyToken, async (req, res) => {
     // Удаляем сам чат
     await chat.destroy();
 
-    res.json({ message: 'Чат успешно удален' });
+    res.json({ message: req.t('chat.deleted') });
   } catch (error) {
     console.error('Error deleting chat:', error);
-    res.status(500).json({ message: 'Ошибка при удалении чата' });
+    res.status(500).json({ message: req.t('chat.deleteError') });
   }
 });
 

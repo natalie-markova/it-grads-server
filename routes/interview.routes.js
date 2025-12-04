@@ -5,6 +5,11 @@ const authMiddleware = require('../middleware/authMiddleware');
 const yandexGPTService = require('../services/yandexGPT.service');
 const audioInterviewService = require('../services/audioInterview.service');
 const yandexTTSService = require('../services/yandexTTS.service');
+const skillAggregator = require('../services/skillAggregator.service');
+const { i18nMiddleware } = require('../config/i18n');
+
+// Apply i18n middleware to all routes
+router.use(i18nMiddleware);
 
 // ============= CREATE SESSION =============
 // POST /api/interviews - Создать новую сессию AI интервью
@@ -15,7 +20,7 @@ router.post('/', authMiddleware, async (req, res) => {
 
     if (!direction || !technologies || !level) {
       return res.status(400).json({
-        error: 'Missing required fields: direction, technologies, level'
+        error: req.t('interview.missingFields')
       });
     }
 
@@ -49,7 +54,7 @@ router.post('/', authMiddleware, async (req, res) => {
     });
   } catch (error) {
     console.error('Error creating interview session:', error);
-    res.status(500).json({ error: 'Failed to create interview session' });
+    res.status(500).json({ error: req.t('interview.createError') });
   }
 });
 
@@ -72,7 +77,7 @@ router.get('/my', authMiddleware, async (req, res) => {
     res.json(sessions);
   } catch (error) {
     console.error('Error fetching user interviews:', error);
-    res.status(500).json({ error: 'Failed to fetch user interviews' });
+    res.status(500).json({ error: req.t('interview.fetchError') });
   }
 });
 
@@ -83,12 +88,12 @@ router.post('/tts', async (req, res) => {
     const { text, gender, voiceId } = req.body;
 
     if (!text || !text.trim()) {
-      return res.status(400).json({ error: 'Text is required' });
+      return res.status(400).json({ error: req.t('interview.textRequired') });
     }
 
     // Ограничение длины текста (Yandex limit ~5000 символов)
     if (text.length > 5000) {
-      return res.status(400).json({ error: 'Text too long. Maximum 5000 characters.' });
+      return res.status(400).json({ error: req.t('interview.textTooLong') });
     }
 
     const options = {};
@@ -107,7 +112,7 @@ router.post('/tts', async (req, res) => {
     });
   } catch (error) {
     console.error('TTS Error:', error);
-    res.status(500).json({ error: 'Failed to synthesize speech' });
+    res.status(500).json({ error: req.t('interview.ttsError') });
   }
 });
 
@@ -128,13 +133,13 @@ router.post('/audio', authMiddleware, async (req, res) => {
 
     if (!interviewerPersona || !position) {
       return res.status(400).json({
-        error: 'Missing required fields: interviewerPersona, position'
+        error: req.t('interview.missingAudioFields')
       });
     }
 
     const personaConfig = audioInterviewService.getPersonaConfig(interviewerPersona);
     if (!personaConfig) {
-      return res.status(400).json({ error: 'Invalid interviewer persona' });
+      return res.status(400).json({ error: req.t('interview.invalidPersona') });
     }
 
     // Создаем сессию
@@ -162,7 +167,7 @@ router.post('/audio', authMiddleware, async (req, res) => {
     });
   } catch (error) {
     console.error('Error creating audio interview session:', error);
-    res.status(500).json({ error: 'Failed to create audio interview session' });
+    res.status(500).json({ error: req.t('interview.createError') });
   }
 });
 
@@ -174,7 +179,7 @@ router.post('/audio/:sessionId/answer', authMiddleware, async (req, res) => {
     const userId = req.userId;
 
     if (!content || !content.trim()) {
-      return res.status(400).json({ error: 'Answer content is required' });
+      return res.status(400).json({ error: req.t('interview.answerRequired') });
     }
 
     const session = await AIInterviewSession.findOne({
@@ -187,7 +192,7 @@ router.post('/audio/:sessionId/answer', authMiddleware, async (req, res) => {
     });
 
     if (!session) {
-      return res.status(404).json({ error: 'Interview session not found' });
+      return res.status(404).json({ error: req.t('interview.sessionNotFound') });
     }
 
     // Оцениваем ответ пользователя
@@ -235,7 +240,7 @@ router.post('/audio/:sessionId/answer', authMiddleware, async (req, res) => {
     });
   } catch (error) {
     console.error('Error sending audio interview answer:', error);
-    res.status(500).json({ error: 'Failed to send answer' });
+    res.status(500).json({ error: req.t('interview.sessionError') });
   }
 });
 
@@ -255,7 +260,7 @@ router.post('/audio/:sessionId/complete', authMiddleware, async (req, res) => {
     });
 
     if (!session) {
-      return res.status(404).json({ error: 'Interview session not found' });
+      return res.status(404).json({ error: req.t('interview.sessionNotFound') });
     }
 
     // Генерируем итоговую оценку
@@ -274,6 +279,9 @@ router.post('/audio/:sessionId/complete', authMiddleware, async (req, res) => {
       completedAt: new Date()
     });
 
+    // Триггерим пересчёт радара навыков (асинхронно)
+    skillAggregator.triggerRecalculation(userId, 'audioInterview');
+
     res.json({
       overallScore: summary.overallScore,
       strengths: summary.strengths,
@@ -283,7 +291,7 @@ router.post('/audio/:sessionId/complete', authMiddleware, async (req, res) => {
     });
   } catch (error) {
     console.error('Error completing audio interview:', error);
-    res.status(500).json({ error: 'Failed to complete audio interview' });
+    res.status(500).json({ error: req.t('interview.sessionError') });
   }
 });
 
@@ -306,13 +314,13 @@ router.get('/:sessionId', authMiddleware, async (req, res) => {
     });
 
     if (!session) {
-      return res.status(404).json({ error: 'Interview session not found' });
+      return res.status(404).json({ error: req.t('interview.sessionNotFound') });
     }
 
     res.json(session);
   } catch (error) {
     console.error('Error fetching interview session:', error);
-    res.status(500).json({ error: 'Failed to fetch interview session' });
+    res.status(500).json({ error: req.t('interview.fetchError') });
   }
 });
 
@@ -324,7 +332,7 @@ router.post('/:sessionId/message', authMiddleware, async (req, res) => {
     const userId = req.userId;
 
     if (!content || !content.trim()) {
-      return res.status(400).json({ error: 'Message content is required' });
+      return res.status(400).json({ error: req.t('interview.messageRequired') });
     }
 
     const session = await AIInterviewSession.findOne({
@@ -337,7 +345,7 @@ router.post('/:sessionId/message', authMiddleware, async (req, res) => {
     });
 
     if (!session) {
-      return res.status(404).json({ error: 'Interview session not found' });
+      return res.status(404).json({ error: req.t('interview.sessionNotFound') });
     }
 
     // Сохраняем сообщение пользователя
@@ -373,7 +381,7 @@ router.post('/:sessionId/message', authMiddleware, async (req, res) => {
     });
   } catch (error) {
     console.error('Error sending message:', error);
-    res.status(500).json({ error: 'Failed to send message' });
+    res.status(500).json({ error: req.t('interview.sessionError') });
   }
 });
 
@@ -393,7 +401,7 @@ router.post('/:sessionId/complete', authMiddleware, async (req, res) => {
     });
 
     if (!session) {
-      return res.status(404).json({ error: 'Interview session not found' });
+      return res.status(404).json({ error: req.t('interview.sessionNotFound') });
     }
 
     // Генерируем итоговую оценку через YandexGPT
@@ -413,6 +421,9 @@ router.post('/:sessionId/complete', authMiddleware, async (req, res) => {
       detailedFeedback: feedback.detailedFeedback
     });
 
+    // Триггерим пересчёт радара навыков (асинхронно)
+    skillAggregator.triggerRecalculation(userId, 'aiInterview');
+
     res.json({
         totalScore: feedback.totalScore,
         strengths: feedback.strengths,
@@ -422,7 +433,7 @@ router.post('/:sessionId/complete', authMiddleware, async (req, res) => {
     });
   } catch (error) {
     console.error('Error completing interview:', error);
-    res.status(500).json({ error: 'Failed to complete interview' });
+    res.status(500).json({ error: req.t('interview.sessionError') });
   }
 });
 
@@ -437,14 +448,14 @@ router.delete('/:sessionId', authMiddleware, async (req, res) => {
     });
 
     if (!session) {
-      return res.status(404).json({ error: 'Interview session not found' });
+      return res.status(404).json({ error: req.t('interview.sessionNotFound') });
     }
 
     await session.destroy();
-    res.json({ message: 'Interview session deleted successfully' });
+    res.json({ message: req.t('interview.deleted') });
   } catch (error) {
     console.error('Error deleting interview session:', error);
-    res.status(500).json({ error: 'Failed to delete interview session' });
+    res.status(500).json({ error: req.t('interview.deleteError') });
   }
 });
 
