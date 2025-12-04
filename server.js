@@ -205,10 +205,29 @@ app.use("/api/interview-tracker", interviewTrackerRoutes);
       socket.join(`user-${userId}`);
       console.log(`User ${userId} joined personal room: user-${userId}`);
 
-      // Присоединиться к чату
-      socket.on("join-chat", chatId => {
-        socket.join(`chat-${chatId}`);
-        console.log(`User ${socket.id} joined chat ${chatId}`);
+      // Присоединиться к чату (с проверкой доступа)
+      socket.on('join-chat', async (chatId) => {
+        try {
+          // Проверяем, существует ли чат и имеет ли пользователь к нему доступ
+          const chat = await db.Chat.findByPk(chatId);
+
+          if (!chat) {
+            console.log(`❌ Chat ${chatId} not found`);
+            return socket.emit('join-chat-error', { error: 'Chat not found' });
+          }
+
+          // Проверяем, является ли пользователь участником этого чата
+          if (chat.user1Id !== userId && chat.user2Id !== userId) {
+            console.log(`❌ User ${userId} has no access to chat ${chatId}`);
+            return socket.emit('join-chat-error', { error: 'Access denied' });
+          }
+
+          socket.join(`chat-${chatId}`);
+          console.log(`✅ User ${socket.id} (userId: ${userId}) joined chat ${chatId}`);
+        } catch (error) {
+          console.error('Error joining chat:', error);
+          socket.emit('join-chat-error', { error: 'Failed to join chat' });
+        }
       });
 
       // Покинуть чат
@@ -234,6 +253,9 @@ app.use("/api/interview-tracker", interviewTrackerRoutes);
             senderId: socket.handshake.auth.userId,
             isRead: false,
           });
+
+          // Обновить lastMessageAt в чате
+          await chat.update({ lastMessageAt: new Date() });
 
           // Определить получателя
           const recipientId =
