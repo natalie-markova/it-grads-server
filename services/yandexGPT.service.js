@@ -64,71 +64,67 @@ class YandexGPTService {
 
   /**
  * Создать приветственное сообщение для начала интервью
+ * Полностью генерируется нейросетью для максимальной рандомизации
  */
 async generateGreeting(direction, technologies, level, questionsCount) {
     const levelContext = {
-      'junior': 'начинающего',
-      'middle': 'среднего уровня',
-      'senior': 'ведущего'
+      'junior': 'начинающего специалиста (0-1 год опыта)',
+      'middle': 'middle-разработчика (2-4 года опыта)',
+      'senior': 'senior-разработчика (5+ лет опыта)'
     };
 
     const firstTech = technologies[0];
-    const techTopics = this.getTechTopics(firstTech);
 
-    const systemPrompt = `Ты - опытный технический интервьюер. Проводишь собеседование на позицию ${direction}-разработчика ${levelContext[level] || 'среднего уровня'}.
+    // Случайный стиль интервьюера для разнообразия
+    const interviewerStyles = [
+      'Ты дружелюбный, но требовательный интервьюер. Создаёшь комфортную атмосферу.',
+      'Ты технический эксперт, который любит копать вглубь. Задаёшь уточняющие вопросы.',
+      'Ты практик с большим опытом. Интересуют реальные кейсы и решения.',
+      'Ты строгий, но справедливый интервьюер. Ценишь точность и конкретику.'
+    ];
+    const randomStyle = interviewerStyles[Math.floor(Math.random() * interviewerStyles.length)];
 
-Технологии для проверки: ${technologies.join(', ')}.
+    // Случайный тип первого вопроса
+    const questionTypes = [
+      'концептуальный вопрос на понимание основ',
+      'практический вопрос из реального опыта',
+      'вопрос на сравнение подходов или технологий',
+      'вопрос про best practices и паттерны',
+      'вопрос про решение типичной проблемы'
+    ];
+    const randomQuestionType = questionTypes[Math.floor(Math.random() * questionTypes.length)];
+
+    const systemPrompt = `${randomStyle}
+
+Проводишь собеседование на позицию ${direction}-разработчика уровня ${levelContext[level] || 'middle'}.
+Технологии: ${technologies.join(', ')}.
 Всего будет ${questionsCount} вопросов.
 
-ПРАВИЛА:
-- Представься кратко (1 предложение)
-- Объясни формат интервью (1 предложение)
-- Задай ПЕРВЫЙ вопрос по ${firstTech}
-- Вопрос должен быть конкретным и техническим
+ТВОЯ ЗАДАЧА:
+1. Кратко представься (придумай себе имя и должность)
+2. Скажи пару слов о формате интервью
+3. Задай ПЕРВЫЙ вопрос по ${firstTech}
 
-ТЕМЫ ДЛЯ ПЕРВОГО ВОПРОСА ПО ${firstTech}: ${techTopics}
+ТРЕБОВАНИЯ К ПЕРВОМУ ВОПРОСУ:
+- Тип вопроса: ${randomQuestionType}
+- НЕ задавай банальные вопросы типа "что такое ${firstTech}"
+- Придумай УНИКАЛЬНЫЙ вопрос, который ты бы задал на реальном собеседовании
+- Вопрос должен соответствовать уровню ${level}
+- Можешь спросить про конкретную ситуацию, сценарий или проблему
 
-Пример формата:
-"Привет! Я буду проводить техническое интервью. Мы обсудим ${technologies.join(', ')}. Начнём с ${firstTech}: [конкретный вопрос]"`;
+Будь креативным! Каждое интервью должно быть уникальным.`;
 
     const messages = [
         { role: 'system', text: systemPrompt },
         { role: 'user', text: 'Начни интервью' }
     ];
 
-    return await this.sendRequest(messages, { temperature: 0.6 });
-}
-
-/**
- * Получить темы для технологии
- */
-getTechTopics(tech) {
-  const topics = {
-    'React': 'хуки (useState, useEffect, useContext, useMemo, useCallback), Virtual DOM, props vs state, context API, lifecycle методы, refs, мемоизация, React.memo, порталы, error boundaries',
-    'JavaScript': 'замыкания, hoisting, let/const/var, промисы, async/await, event loop, this, прототипы, классы, модули ES6, spread/rest операторы, деструктуризация, Map/Set',
-    'TypeScript': 'типы vs интерфейсы, дженерики, union/intersection типы, enum, декораторы, utility types (Partial, Pick, Omit), type guards, infer, conditional types',
-    'Node.js': 'модули CommonJS/ESM, event loop, streams, buffer, middleware, кластеризация, process, child_process, fs, path, работа с БД',
-    'HTML': 'семантические теги, формы, доступность (a11y), meta-теги, SEO, валидация, HTML5 API',
-    'CSS': 'flexbox, grid, позиционирование, специфичность селекторов, БЭМ, препроцессоры, CSS-переменные, анимации, media queries',
-    'SQL': 'JOIN типы, индексы, транзакции, нормализация, агрегатные функции, подзапросы, оптимизация запросов',
-    'PostgreSQL': 'типы данных, индексы (B-tree, GIN, GiST), JSONB, партиционирование, репликация, EXPLAIN ANALYZE',
-    'MongoDB': 'документы vs коллекции, индексы, агрегации, репликация, шардирование, транзакции',
-    'Redis': 'типы данных, персистентность, pub/sub, кэширование, TTL, кластеризация',
-    'Docker': 'образы vs контейнеры, Dockerfile, docker-compose, volumes, networks, multi-stage builds',
-    'Git': 'rebase vs merge, cherry-pick, stash, reset vs revert, branching стратегии, конфликты',
-    'REST API': 'HTTP методы, статус коды, версионирование, аутентификация, CORS, идемпотентность',
-    'GraphQL': 'queries vs mutations, схема, resolvers, subscriptions, fragments, директивы',
-    'Python': 'декораторы, генераторы, контекстные менеджеры, GIL, async/await, типизация',
-    'Vue': 'реактивность, computed vs watch, директивы, lifecycle, Vuex/Pinia, composition API',
-    'Angular': 'модули, компоненты, сервисы, DI, RxJS, pipes, guards, lazy loading',
-    'Express': 'middleware, роутинг, обработка ошибок, валидация, аутентификация',
-    'NestJS': 'модули, контроллеры, провайдеры, guards, interceptors, pipes, декораторы'
-  };
-  return topics[tech] || 'основные концепции, best practices, типичные задачи, архитектура';
+    return await this.sendRequest(messages, { temperature: 0.9 });
 }
 
 /**
  * Получить следующий вопрос на основе истории диалога
+ * Вопросы генерируются нейросетью полностью динамически
  */
 async generateNextMessage(direction, technologies, level, questionsCount, messageHistory) {
   const aiMessagesCount = messageHistory.filter(msg => msg.role === 'assistant').length;
@@ -143,35 +139,52 @@ async generateNextMessage(direction, technologies, level, questionsCount, messag
     technologies.length - 1
   );
   const currentTech = technologies[currentTechIndex];
-  const questionInCurrentTech = ((aiMessagesCount - 1) % questionsPerTech) + 1;
-
-  const techTopics = this.getTechTopics(currentTech);
 
   const levelContext = {
-    'junior': 'Задавай базовые вопросы на понимание основ. Уровень: начинающий разработчик.',
-    'middle': 'Задавай вопросы среднего уровня сложности, включая практические кейсы. Уровень: опытный разработчик.',
-    'senior': 'Задавай сложные вопросы на глубокое понимание, архитектуру и оптимизацию. Уровень: ведущий разработчик.'
+    'junior': 'Уровень junior: спрашивай про основы, но не банальности. Ищи понимание концепций.',
+    'middle': 'Уровень middle: практические кейсы, архитектурные решения, реальные проблемы и их решения.',
+    'senior': 'Уровень senior: глубокие вопросы про архитектуру, оптимизацию, trade-offs, масштабирование.'
   };
 
-  const systemPrompt = `Ты - опытный технический интервьюер на позицию ${direction} разработчика.
-${levelContext[level] || levelContext['middle']}
+  // Случайные модификаторы для разнообразия вопросов
+  const questionAngles = [
+    'Спроси про конкретную проблему, которую кандидат мог встретить',
+    'Попроси сравнить два подхода или решения',
+    'Задай вопрос про оптимизацию или производительность',
+    'Спроси про отладку или поиск багов',
+    'Попроси объяснить как работает что-то "под капотом"',
+    'Задай практический кейс из реальной разработки',
+    'Спроси про edge cases или нетипичные сценарии',
+    'Попроси привести пример из личного опыта',
+    'Спроси про best practices и почему они важны',
+    'Задай вопрос про интеграцию с другими технологиями'
+  ];
+  const randomAngle = questionAngles[Math.floor(Math.random() * questionAngles.length)];
 
-ПРОГРЕСС: Вопрос ${aiMessagesCount} из ${questionsCount}
-ТЕКУЩАЯ ТЕХНОЛОГИЯ: ${currentTech} (вопрос ${questionInCurrentTech} из ${questionsPerTech})
+  const systemPrompt = `Ты опытный технический интервьюер. ${levelContext[level] || levelContext['middle']}
 
-ТЕМЫ ДЛЯ ВОПРОСОВ ПО ${currentTech}: ${techTopics}
+КОНТЕКСТ:
+- Позиция: ${direction}-разработчик
+- Технологии на интервью: ${technologies.join(', ')}
+- Прогресс: вопрос ${aiMessagesCount} из ${questionsCount}
+- Сейчас проверяем: ${currentTech}
 
-ПРАВИЛА:
-1. ВНИМАТЕЛЬНО прочитай последний ответ кандидата
-2. Дай КОНКРЕТНУЮ обратную связь (2-3 предложения): что верно, что неверно, что можно дополнить
-3. Затем задай ОДИН новый вопрос по ${currentTech}
-4. Вопрос должен быть по ДРУГОЙ теме, не повторяй уже заданные
-5. Формулируй вопрос чётко и конкретно
+ТВОЯ ЗАДАЧА:
+1. Прочитай последний ответ кандидата
+2. Дай короткую, но СОДЕРЖАТЕЛЬНУЮ обратную связь (что хорошо, что можно улучшить, что упущено)
+3. Задай НОВЫЙ вопрос по ${currentTech}
 
-ФОРМАТ ОТВЕТА:
-[Обратная связь на ответ]
+ТРЕБОВАНИЯ К ВОПРОСУ:
+- ${randomAngle}
+- НЕ повторяй темы из предыдущих вопросов (смотри историю)
+- Вопрос должен быть УНИКАЛЬНЫМ и интересным
+- Избегай шаблонных вопросов типа "что такое X" или "какие типы X бывают"
+- Придумай сценарий, проблему или ситуацию
 
-Следующий вопрос: [вопрос]`;
+ФОРМАТ:
+[Обратная связь 2-3 предложения]
+
+Следующий вопрос: [твой уникальный вопрос]`;
 
   const messages = [
     { role: 'system', text: systemPrompt },
@@ -181,7 +194,7 @@ ${levelContext[level] || levelContext['middle']}
     }))
   ];
 
-  return await this.sendRequest(messages, { temperature: 0.6, maxTokens: 300 });
+  return await this.sendRequest(messages, { temperature: 0.85, maxTokens: 400 });
 }
 
   /**
