@@ -270,7 +270,7 @@ router.patch("/:id/share", authMiddleware, async (req, res) => {
 
 // ============= EMPLOYER ROUTES =============
 
-// GET /api/interview-tracker/employer - Получить собеседования, расшаренные с работодателем
+// GET /api/interview-tracker/employer - Получить собеседования работодателя
 router.get("/employer", authMiddleware, async (req, res) => {
   try {
     const employerId = req.userId;
@@ -281,24 +281,10 @@ router.get("/employer", authMiddleware, async (req, res) => {
       return res.status(403).json({ error: "Доступ только для работодателей" });
     }
 
+    // Получаем собеседования, созданные работодателем (userId = employerId)
     const interviews = await InterviewTracker.findAll({
-      where: {
-        employerId,
-        sharedWithEmployer: true,
-      },
+      where: { userId: employerId },
       include: [
-        {
-          model: User,
-          as: "user",
-          attributes: [
-            "id",
-            "username",
-            "firstName",
-            "lastName",
-            "email",
-            "avatar",
-          ],
-        },
         {
           model: Vacancy,
           as: "vacancy",
@@ -315,6 +301,214 @@ router.get("/employer", authMiddleware, async (req, res) => {
   } catch (error) {
     console.error("Error fetching employer interviews:", error);
     res.status(500).json({ error: "Ошибка при получении собеседований" });
+  }
+});
+
+// POST /api/interview-tracker/employer - Создать собеседование работодателем
+router.post("/employer", authMiddleware, async (req, res) => {
+  try {
+    const employerId = req.userId;
+
+    // Проверить что пользователь - работодатель
+    const employer = await User.findByPk(employerId);
+    if (!employer || employer.role !== "employer") {
+      return res.status(403).json({ error: "Доступ только для работодателей" });
+    }
+
+    const {
+      company, // Здесь будет имя кандидата для работодателя
+      position,
+      date,
+      time,
+      type,
+      location,
+      meetingLink,
+      contactPerson,
+      contactPhone,
+      notes,
+      reminder,
+      vacancyId,
+    } = req.body;
+
+    if (!company || !position || !date || !time) {
+      return res.status(400).json({
+        error: "Заполните обязательные поля: кандидат, позиция, дата, время",
+      });
+    }
+
+    const interview = await InterviewTracker.create({
+      userId: employerId, // Работодатель - владелец записи
+      employerId: employerId,
+      company, // Имя кандидата
+      position,
+      date,
+      time,
+      type: type || "online",
+      location,
+      meetingLink,
+      contactPerson,
+      contactPhone,
+      notes,
+      reminder: reminder !== false,
+      vacancyId: vacancyId || null,
+      sharedWithEmployer: true,
+      employerConfirmed: true,
+    });
+
+    res.status(201).json(interview);
+  } catch (error) {
+    console.error("Error creating employer interview:", error);
+    res.status(500).json({ error: "Ошибка при создании собеседования" });
+  }
+});
+
+// PUT /api/interview-tracker/employer/:id - Обновить собеседование работодателем
+router.put("/employer/:id", authMiddleware, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const employerId = req.userId;
+
+    const employer = await User.findByPk(employerId);
+    if (!employer || employer.role !== "employer") {
+      return res.status(403).json({ error: "Доступ только для работодателей" });
+    }
+
+    const interview = await InterviewTracker.findOne({
+      where: { id, userId: employerId },
+    });
+
+    if (!interview) {
+      return res.status(404).json({ error: "Собеседование не найдено" });
+    }
+
+    const {
+      company,
+      position,
+      date,
+      time,
+      type,
+      location,
+      meetingLink,
+      contactPerson,
+      contactPhone,
+      notes,
+      reminder,
+      vacancyId,
+    } = req.body;
+
+    await interview.update({
+      company: company || interview.company,
+      position: position || interview.position,
+      date: date || interview.date,
+      time: time || interview.time,
+      type: type || interview.type,
+      location,
+      meetingLink,
+      contactPerson,
+      contactPhone,
+      notes,
+      reminder: reminder !== undefined ? reminder : interview.reminder,
+      vacancyId: vacancyId !== undefined ? vacancyId : interview.vacancyId,
+    });
+
+    res.json(interview);
+  } catch (error) {
+    console.error("Error updating employer interview:", error);
+    res.status(500).json({ error: "Ошибка при обновлении собеседования" });
+  }
+});
+
+// DELETE /api/interview-tracker/employer/:id - Удалить собеседование работодателем
+router.delete("/employer/:id", authMiddleware, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const employerId = req.userId;
+
+    const employer = await User.findByPk(employerId);
+    if (!employer || employer.role !== "employer") {
+      return res.status(403).json({ error: "Доступ только для работодателей" });
+    }
+
+    const interview = await InterviewTracker.findOne({
+      where: { id, userId: employerId },
+    });
+
+    if (!interview) {
+      return res.status(404).json({ error: "Собеседование не найдено" });
+    }
+
+    await interview.destroy();
+    res.json({ message: "Собеседование удалено" });
+  } catch (error) {
+    console.error("Error deleting employer interview:", error);
+    res.status(500).json({ error: "Ошибка при удалении собеседования" });
+  }
+});
+
+// PATCH /api/interview-tracker/employer/:id/status - Изменить статус (работодатель)
+router.patch("/employer/:id/status", authMiddleware, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const employerId = req.userId;
+    const { status } = req.body;
+
+    const employer = await User.findByPk(employerId);
+    if (!employer || employer.role !== "employer") {
+      return res.status(403).json({ error: "Доступ только для работодателей" });
+    }
+
+    const interview = await InterviewTracker.findOne({
+      where: { id, userId: employerId },
+    });
+
+    if (!interview) {
+      return res.status(404).json({ error: "Собеседование не найдено" });
+    }
+
+    if (!["scheduled", "completed", "cancelled"].includes(status)) {
+      return res.status(400).json({ error: "Неверный статус" });
+    }
+
+    await interview.update({ status });
+    res.json(interview);
+  } catch (error) {
+    console.error("Error updating employer interview status:", error);
+    res.status(500).json({ error: "Ошибка при обновлении статуса" });
+  }
+});
+
+// PATCH /api/interview-tracker/employer/:id/result - Результат (работодатель)
+router.patch("/employer/:id/result", authMiddleware, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const employerId = req.userId;
+    const { result, feedback } = req.body;
+
+    const employer = await User.findByPk(employerId);
+    if (!employer || employer.role !== "employer") {
+      return res.status(403).json({ error: "Доступ только для работодателей" });
+    }
+
+    const interview = await InterviewTracker.findOne({
+      where: { id, userId: employerId },
+    });
+
+    if (!interview) {
+      return res.status(404).json({ error: "Собеседование не найдено" });
+    }
+
+    if (result && !["passed", "failed", "pending"].includes(result)) {
+      return res.status(400).json({ error: "Неверный результат" });
+    }
+
+    await interview.update({
+      result,
+      feedback: feedback !== undefined ? feedback : interview.feedback,
+    });
+    res.json(interview);
+  } catch (error) {
+    console.error("Error updating employer interview result:", error);
+    res.status(500).json({ error: "Ошибка при обновлении результата" });
   }
 });
 
