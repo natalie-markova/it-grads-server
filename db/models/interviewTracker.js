@@ -16,6 +16,18 @@ module.exports = (sequelize, DataTypes) => {
         as: "employer",
       });
 
+      // Связь с выпускником (для записей работодателя)
+      InterviewTracker.belongsTo(models.User, {
+        foreignKey: "graduateId",
+        as: "graduate",
+      });
+
+      // Связь с привязанным собеседованием
+      InterviewTracker.belongsTo(models.InterviewTracker, {
+        foreignKey: "linkedInterviewId",
+        as: "linkedInterview",
+      });
+
       // Связь с вакансией (опционально)
       InterviewTracker.belongsTo(models.Vacancy, {
         foreignKey: "vacancyId",
@@ -42,6 +54,24 @@ module.exports = (sequelize, DataTypes) => {
           key: "id",
         },
         comment: "ID работодателя для синхронизации",
+      },
+      graduateId: {
+        type: DataTypes.INTEGER,
+        allowNull: true,
+        references: {
+          model: "Users",
+          key: "id",
+        },
+        comment: "ID выпускника (для записей работодателя)",
+      },
+      linkedInterviewId: {
+        type: DataTypes.INTEGER,
+        allowNull: true,
+        references: {
+          model: "InterviewTrackers",
+          key: "id",
+        },
+        comment: "ID связанного собеседования (синхронизация)",
       },
       vacancyId: {
         type: DataTypes.INTEGER,
@@ -122,6 +152,12 @@ module.exports = (sequelize, DataTypes) => {
         type: DataTypes.BOOLEAN,
         defaultValue: false,
         comment: "Открыт ли доступ работодателю",
+      },
+      // Статус приглашения (для собеседований от работодателя)
+      invitationStatus: {
+        type: DataTypes.ENUM("none", "pending", "accepted", "declined"),
+        defaultValue: "none",
+        comment: "Статус приглашения: none - обычная запись, pending - ожидает ответа, accepted - принято, declined - отклонено",
       },
     },
     {
