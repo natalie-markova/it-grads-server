@@ -148,12 +148,12 @@ router.post('/audio', authMiddleware, async (req, res) => {
       interviewerPersona,
       position,
       status: 'in-progress',
-      currentQuestionIndex: 0
+      currentQuestionIndex: 0,
+      questionsCount: 5
     });
 
-    // Генерируем первый вопрос для выбранной позиции
-    const firstQuestion = audioInterviewService.getQuestion(interviewerPersona, 0, position);
-    const greetingContent = `Здравствуйте! Я ${personaConfig.title}. Вы претендуете на позицию "${position}". Давайте начнем наше интервью.\n\n${firstQuestion}`;
+    // Генерируем приветствие и первый вопрос через YandexGPT
+    const greetingContent = await audioInterviewService.generateGreeting(interviewerPersona, position);
 
     const firstMessage = await AIInterviewMessage.create({
       sessionId: session.id,
@@ -195,9 +195,6 @@ router.post('/audio/:sessionId/answer', authMiddleware, async (req, res) => {
       return res.status(404).json({ error: req.t('interview.sessionNotFound') });
     }
 
-    // Оцениваем ответ пользователя
-    const evaluation = audioInterviewService.evaluateAnswer(content.trim());
-
     // Сохраняем ответ пользователя
     const userMessage = await AIInterviewMessage.create({
       sessionId: session.id,
@@ -207,15 +204,33 @@ router.post('/audio/:sessionId/answer', authMiddleware, async (req, res) => {
 
     // Обновляем индекс вопроса
     const nextQuestionIndex = session.currentQuestionIndex + 1;
-    const totalQuestions = 5;
+    const totalQuestions = session.questionsCount || 5;
     const isLastQuestion = nextQuestionIndex >= totalQuestions;
+
+    // Получаем контекст последнего вопроса для оценки
+    const lastAssistantMessage = session.messages.filter(m => m.role === 'assistant').pop();
+    const questionContext = lastAssistantMessage?.content || '';
+
+    // Оцениваем ответ пользователя через YandexGPT
+    const evaluation = await audioInterviewService.evaluateAnswer(
+      content.trim(),
+      session.position,
+      questionContext
+    );
 
     let aiContent;
     if (isLastQuestion) {
       aiContent = `${evaluation.evaluation}\n\nСпасибо за ваши ответы! Интервью завершено. Сейчас я подготовлю для вас обратную связь.`;
     } else {
-      const nextQuestion = audioInterviewService.getQuestion(session.interviewerPersona, nextQuestionIndex, session.position);
-      aiContent = `${evaluation.evaluation}\n\nСледующий вопрос:\n${nextQuestion}`;
+      // Генерируем следующий вопрос через YandexGPT
+      const messageHistory = [...session.messages, { role: 'user', content: content.trim() }];
+      aiContent = await audioInterviewService.generateNextQuestion(
+        session.interviewerPersona,
+        session.position,
+        messageHistory,
+        nextQuestionIndex + 1,
+        totalQuestions
+      );
     }
 
     // Сохраняем ответ AI с оценкой
@@ -263,8 +278,8 @@ router.post('/audio/:sessionId/complete', authMiddleware, async (req, res) => {
       return res.status(404).json({ error: req.t('interview.sessionNotFound') });
     }
 
-    // Генерируем итоговую оценку
-    const summary = audioInterviewService.buildSummary(session.messages);
+    // Генерируем итоговую оценку через YandexGPT
+    const summary = await audioInterviewService.buildSummary(session.messages, session.position);
 
     // Вычисляем длительность
     const duration = Math.floor((new Date() - new Date(session.createdAt)) / 1000);

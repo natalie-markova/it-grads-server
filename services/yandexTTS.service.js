@@ -5,24 +5,17 @@
 
 const axios = require('axios');
 
-// Доступные голоса YandexSpeechKit (актуальные на 2024)
+// Доступные голоса YandexSpeechKit (актуальные на 2025)
 // https://yandex.cloud/docs/speechkit/tts/voices
 const VOICES = {
   female: [
     { id: 'alena', name: 'Алёна', emotion: 'neutral' },
     { id: 'jane', name: 'Джейн', emotion: 'neutral' },
-    { id: 'omazh', name: 'Омаж', emotion: 'neutral' },
-    { id: 'marina', name: 'Марина', emotion: 'neutral' },
-    { id: 'lera', name: 'Лера', emotion: 'neutral' },
-    { id: 'masha', name: 'Маша', emotion: 'neutral' },
   ],
   male: [
     { id: 'filipp', name: 'Филипп', emotion: 'neutral' },
     { id: 'ermil', name: 'Ермил', emotion: 'neutral' },
-    { id: 'madirus', name: 'Мадирус', emotion: 'neutral' },
-    { id: 'alexander', name: 'Александр', emotion: 'neutral' },
-    { id: 'kirill', name: 'Кирилл', emotion: 'neutral' },
-    { id: 'anton', name: 'Антон', emotion: 'neutral' },
+    { id: 'zahar', name: 'Захар', emotion: 'neutral' },
   ]
 };
 
@@ -75,16 +68,15 @@ class YandexTTSService {
 
     const voice = options.voice || this.getRandomVoice(options.gender);
 
-    // Используем mp3 формат - лучшая совместимость с браузерами
-    const audioFormat = 'mp3';
-    const mimeType = 'audio/mpeg';
+    // Используем oggopus формат - поддерживается YandexSpeechKit и браузерами
+    const mimeType = 'audio/ogg';
 
     const params = new URLSearchParams({
       text: text,
       lang: 'ru-RU',
       voice: voice.id,
       speed: options.speed || '1.0',
-      format: 'lame', // MP3 формат (lame encoder)
+      format: 'oggopus',
       sampleRateHertz: '48000',
       folderId: this.folderId
     });

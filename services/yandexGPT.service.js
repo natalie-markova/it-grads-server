@@ -65,41 +65,79 @@ class YandexGPTService {
   /**
  * Создать приветственное сообщение для начала интервью
  */
-    async generateGreeting(direction, technologies, level, questionsCount) {
-        const systemPrompt = `Ты - технический интервьюер. Собеседование на позицию ${direction}-разработчика уровня ${level}.
-    Технологии: ${technologies.join(', ')}.
+async generateGreeting(direction, technologies, level, questionsCount) {
+    const levelContext = {
+      'junior': 'начинающего',
+      'middle': 'среднего уровня',
+      'senior': 'ведущего'
+    };
 
-    ПРАВИЛА:
-    - Будь профессиональным, но не слишком формальным
-    - Задавай ТОЛЬКО ОДИН вопрос за раз
-    - Вопросы должны быть конкретными и техническими
+    const firstTech = technologies[0];
+    const techTopics = this.getTechTopics(firstTech);
 
-    Начни с короткого приветствия и задай первый вопрос.`;
+    const systemPrompt = `Ты - опытный технический интервьюер. Проводишь собеседование на позицию ${direction}-разработчика ${levelContext[level] || 'среднего уровня'}.
 
-        const messages = [
-            { role: 'system', text: systemPrompt },
-            { role: 'user', text: 'Начни интервью' }
-        ];
+Технологии для проверки: ${technologies.join(', ')}.
+Всего будет ${questionsCount} вопросов.
 
-        return await this.sendRequest(messages, { temperature: 0.6 });
-    }
+ПРАВИЛА:
+- Представься кратко (1 предложение)
+- Объясни формат интервью (1 предложение)
+- Задай ПЕРВЫЙ вопрос по ${firstTech}
+- Вопрос должен быть конкретным и техническим
+
+ТЕМЫ ДЛЯ ПЕРВОГО ВОПРОСА ПО ${firstTech}: ${techTopics}
+
+Пример формата:
+"Привет! Я буду проводить техническое интервью. Мы обсудим ${technologies.join(', ')}. Начнём с ${firstTech}: [конкретный вопрос]"`;
+
+    const messages = [
+        { role: 'system', text: systemPrompt },
+        { role: 'user', text: 'Начни интервью' }
+    ];
+
+    return await this.sendRequest(messages, { temperature: 0.6 });
+}
+
+/**
+ * Получить темы для технологии
+ */
+getTechTopics(tech) {
+  const topics = {
+    'React': 'хуки (useState, useEffect, useContext, useMemo, useCallback), Virtual DOM, props vs state, context API, lifecycle методы, refs, мемоизация, React.memo, порталы, error boundaries',
+    'JavaScript': 'замыкания, hoisting, let/const/var, промисы, async/await, event loop, this, прототипы, классы, модули ES6, spread/rest операторы, деструктуризация, Map/Set',
+    'TypeScript': 'типы vs интерфейсы, дженерики, union/intersection типы, enum, декораторы, utility types (Partial, Pick, Omit), type guards, infer, conditional types',
+    'Node.js': 'модули CommonJS/ESM, event loop, streams, buffer, middleware, кластеризация, process, child_process, fs, path, работа с БД',
+    'HTML': 'семантические теги, формы, доступность (a11y), meta-теги, SEO, валидация, HTML5 API',
+    'CSS': 'flexbox, grid, позиционирование, специфичность селекторов, БЭМ, препроцессоры, CSS-переменные, анимации, media queries',
+    'SQL': 'JOIN типы, индексы, транзакции, нормализация, агрегатные функции, подзапросы, оптимизация запросов',
+    'PostgreSQL': 'типы данных, индексы (B-tree, GIN, GiST), JSONB, партиционирование, репликация, EXPLAIN ANALYZE',
+    'MongoDB': 'документы vs коллекции, индексы, агрегации, репликация, шардирование, транзакции',
+    'Redis': 'типы данных, персистентность, pub/sub, кэширование, TTL, кластеризация',
+    'Docker': 'образы vs контейнеры, Dockerfile, docker-compose, volumes, networks, multi-stage builds',
+    'Git': 'rebase vs merge, cherry-pick, stash, reset vs revert, branching стратегии, конфликты',
+    'REST API': 'HTTP методы, статус коды, версионирование, аутентификация, CORS, идемпотентность',
+    'GraphQL': 'queries vs mutations, схема, resolvers, subscriptions, fragments, директивы',
+    'Python': 'декораторы, генераторы, контекстные менеджеры, GIL, async/await, типизация',
+    'Vue': 'реактивность, computed vs watch, директивы, lifecycle, Vuex/Pinia, composition API',
+    'Angular': 'модули, компоненты, сервисы, DI, RxJS, pipes, guards, lazy loading',
+    'Express': 'middleware, роутинг, обработка ошибок, валидация, аутентификация',
+    'NestJS': 'модули, контроллеры, провайдеры, guards, interceptors, pipes, декораторы'
+  };
+  return topics[tech] || 'основные концепции, best practices, типичные задачи, архитектура';
+}
 
 /**
  * Получить следующий вопрос на основе истории диалога
  */
 async generateNextMessage(direction, technologies, level, questionsCount, messageHistory) {
-  // Подсчитываем количество вопросов от AI
   const aiMessagesCount = messageHistory.filter(msg => msg.role === 'assistant').length;
 
-  // Проверяем, не превышено ли общее количество вопросов
   if (aiMessagesCount >= questionsCount) {
     return 'Спасибо за ответы! Интервью завершено.';
   }
 
-  // Определяем количество вопросов на каждую технологию
   const questionsPerTech = Math.ceil(questionsCount / technologies.length);
-
-  // Определяем текущую технологию
   const currentTechIndex = Math.min(
     Math.floor((aiMessagesCount - 1) / questionsPerTech),
     technologies.length - 1
@@ -107,26 +145,33 @@ async generateNextMessage(direction, technologies, level, questionsCount, messag
   const currentTech = technologies[currentTechIndex];
   const questionInCurrentTech = ((aiMessagesCount - 1) % questionsPerTech) + 1;
 
-  const systemPrompt = `Ты - технический интервьюер. Позиция: ${direction} ${level}.
+  const techTopics = this.getTechTopics(currentTech);
 
-    ПРОГРЕСС: Вопрос ${aiMessagesCount}/${questionsCount}
-    ТЕХНОЛОГИЯ: ${currentTech} (вопрос ${questionInCurrentTech}/${questionsPerTech})
+  const levelContext = {
+    'junior': 'Задавай базовые вопросы на понимание основ. Уровень: начинающий разработчик.',
+    'middle': 'Задавай вопросы среднего уровня сложности, включая практические кейсы. Уровень: опытный разработчик.',
+    'senior': 'Задавай сложные вопросы на глубокое понимание, архитектуру и оптимизацию. Уровень: ведущий разработчик.'
+  };
 
-    СТРОГИЕ ПРАВИЛА:
-    1. Сначала дай КОРОТКУЮ обратную связь на последний ответ (1 предложение: "Верно" / "Не совсем верно" / "Неправильно")
-    2. Затем задай ТОЛЬКО ОДИН новый вопрос по ${currentTech}
-    3. Вопрос должен быть коротким (максимум 10 слов)
-    4. НЕ повторяй уже заданные вопросы из истории диалога
-    5. Игнорируй качество ответов - ВСЕГДА задавай новый вопрос по ДРУГОЙ теме
-    6. Формат ответа: "Верно/Не верно. Следующий вопрос: ..."
+  const systemPrompt = `Ты - опытный технический интервьюер на позицию ${direction} разработчика.
+${levelContext[level] || levelContext['middle']}
 
-    ТЕМЫ ПО ${currentTech}:
-    ${currentTech === 'React' ? 'хуки, Virtual DOM, props, state, context, lifecycle, refs, мемоизация' : ''}
-    ${currentTech === 'JavaScript' ? 'замыкания, переменные, промисы, event loop, this, прототипы, классы, модули' : ''}
-    ${currentTech === 'TypeScript' ? 'типы, интерфейсы, дженерики, enum, декораторы, утилиты, type guards' : ''}
-    ${currentTech === 'Node.js' ? 'модули, event loop, streams, buffer, middleware, async, process, cluster' : ''}
+ПРОГРЕСС: Вопрос ${aiMessagesCount} из ${questionsCount}
+ТЕКУЩАЯ ТЕХНОЛОГИЯ: ${currentTech} (вопрос ${questionInCurrentTech} из ${questionsPerTech})
 
-    Пример правильного ответа: "Верно! Что такое замыкание?"`;
+ТЕМЫ ДЛЯ ВОПРОСОВ ПО ${currentTech}: ${techTopics}
+
+ПРАВИЛА:
+1. ВНИМАТЕЛЬНО прочитай последний ответ кандидата
+2. Дай КОНКРЕТНУЮ обратную связь (2-3 предложения): что верно, что неверно, что можно дополнить
+3. Затем задай ОДИН новый вопрос по ${currentTech}
+4. Вопрос должен быть по ДРУГОЙ теме, не повторяй уже заданные
+5. Формулируй вопрос чётко и конкретно
+
+ФОРМАТ ОТВЕТА:
+[Обратная связь на ответ]
+
+Следующий вопрос: [вопрос]`;
 
   const messages = [
     { role: 'system', text: systemPrompt },
@@ -136,54 +181,82 @@ async generateNextMessage(direction, technologies, level, questionsCount, messag
     }))
   ];
 
-  return await this.sendRequest(messages, { temperature: 0.7, maxTokens: 200 });
+  return await this.sendRequest(messages, { temperature: 0.6, maxTokens: 300 });
 }
 
   /**
    * Сгенерировать итоговую оценку интервью
    */
   async generateFeedback(direction, technologies, level, messageHistory) {
-    const systemPrompt = `Ты - эксперт по техническим интервью. Проанализируй прошедшее интервью для ${direction} разработчика уровня ${level} по технологиям: ${technologies.join(', ')}.
+    const levelExpectations = {
+      'junior': 'Для junior ожидается: понимание базовых концепций, способность объяснить простые вещи, готовность учиться.',
+      'middle': 'Для middle ожидается: уверенное владение технологиями, понимание best practices, опыт решения реальных задач.',
+      'senior': 'Для senior ожидается: глубокое понимание архитектуры, оптимизации, паттернов, способность принимать технические решения.'
+    };
 
-    Оцени:
-    1. Общий уровень знаний (балл от 0 до 100)
-    2. Сильные стороны (массив строк)
-    3. Слабые стороны (массив строк)
-    4. Рекомендации для улучшения (массив строк)
-    5. Детальный отзыв
+    // Форматируем историю для лучшего анализа
+    const formattedHistory = messageHistory.map((msg, i) => {
+      if (msg.role === 'assistant') {
+        return `ИНТЕРВЬЮЕР: ${msg.content}`;
+      }
+      return `КАНДИДАТ: ${msg.content}`;
+    }).join('\n\n');
 
-    Верни результат СТРОГО в формате JSON:
-    {
-    "totalScore": число от 0 до 100,
-    "strengths": ["сильная сторона 1", "сильная сторона 2"],
-    "weaknesses": ["слабость 1", "слабость 2"],
-    "recommendations": ["рекомендация 1", "рекомендация 2"],
-    "detailedFeedback": "подробный текстовый отзыв"
-    }`;
+    const systemPrompt = `Ты - эксперт по оценке технических интервью. Проанализируй интервью на позицию ${direction}-разработчика уровня ${level}.
+
+Технологии: ${technologies.join(', ')}
+${levelExpectations[level] || levelExpectations['middle']}
+
+КРИТЕРИИ ОЦЕНКИ:
+- Правильность ответов (знание фактов)
+- Глубина понимания (не просто заучил, а понимает)
+- Полнота ответов (раскрыл тему)
+- Практический опыт (примеры из практики)
+
+ПРАВИЛА ОЦЕНКИ:
+- 0-30: Не знает основ, критические пробелы
+- 31-50: Знает базу, но много пробелов
+- 51-70: Средний уровень, есть пробелы
+- 71-85: Хороший уровень, незначительные пробелы
+- 86-100: Отличный уровень, глубокие знания
+
+Верни ТОЛЬКО JSON без дополнительного текста:
+{
+  "totalScore": число,
+  "strengths": ["конкретная сильная сторона 1", "конкретная сильная сторона 2"],
+  "weaknesses": ["конкретная слабость 1", "конкретная слабость 2"],
+  "recommendations": ["конкретная рекомендация 1", "конкретная рекомендация 2"],
+  "detailedFeedback": "подробный отзыв 3-5 предложений"
+}`;
 
     const messages = [
       { role: 'system', text: systemPrompt },
-      { role: 'user', text: 'История интервью:\n' + JSON.stringify(messageHistory, null, 2) },
-      { role: 'user', text: 'Создай итоговую оценку в формате JSON' }
+      { role: 'user', text: `ИСТОРИЯ ИНТЕРВЬЮ:\n\n${formattedHistory}\n\nСоздай итоговую оценку.` }
     ];
 
-    const response = await this.sendRequest(messages, { temperature: 0.3 });
-    
+    const response = await this.sendRequest(messages, { temperature: 0.3, maxTokens: 800 });
+
     try {
-      // Попытка извлечь JSON из ответа
       const jsonMatch = response.match(/\{[\s\S]*\}/);
       if (jsonMatch) {
-        return JSON.parse(jsonMatch[0]);
+        const parsed = JSON.parse(jsonMatch[0]);
+        // Валидация структуры
+        return {
+          totalScore: Math.min(100, Math.max(0, parseInt(parsed.totalScore) || 50)),
+          strengths: Array.isArray(parsed.strengths) ? parsed.strengths : ['Участие в интервью'],
+          weaknesses: Array.isArray(parsed.weaknesses) ? parsed.weaknesses : ['Требуется дополнительный анализ'],
+          recommendations: Array.isArray(parsed.recommendations) ? parsed.recommendations : ['Продолжайте развиваться'],
+          detailedFeedback: parsed.detailedFeedback || response
+        };
       }
       throw new Error('No JSON found in response');
     } catch (error) {
-      console.error('Failed to parse feedback JSON:', error);
-      // Фолбэк на простую структуру
+      console.error('Failed to parse feedback JSON:', error, 'Response:', response);
       return {
-        totalScore: 70,
+        totalScore: 50,
         strengths: ['Участие в интервью'],
-        weaknesses: ['Не удалось определить'],
-        recommendations: ['Продолжайте развиваться'],
+        weaknesses: ['Не удалось детально проанализировать'],
+        recommendations: ['Продолжайте практиковаться'],
         detailedFeedback: response
       };
     }
