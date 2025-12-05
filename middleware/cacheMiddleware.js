@@ -17,8 +17,10 @@ const cacheMiddleware = (ttl = 300) => {
       return next();
     }
 
-    // Создаем уникальный ключ на основе URL и query параметров
-    const cacheKey = `cache:${req.originalUrl || req.url}`;
+    // Создаем уникальный ключ на основе URL, query параметров И userId (если есть)
+    // Это критично для персонализированных данных (профиль, избранное и т.д.)
+    const userId = req.userId ? `:user:${req.userId}` : '';
+    const cacheKey = `cache:${req.originalUrl || req.url}${userId}`;
 
     try {
       // Пытаемся получить данные из кэша
