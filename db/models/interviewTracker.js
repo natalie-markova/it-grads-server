@@ -170,3 +170,5 @@ module.exports = (sequelize, DataTypes) => {
   return InterviewTracker;
 };
 
+
+

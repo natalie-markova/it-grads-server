@@ -78,6 +78,53 @@ router.get('/employer/:id', cacheMiddleware(600), async (req, res) => {
   }
 });
 
+// GET /api/user/employers - Получить всех работодателей (должен быть ПЕРЕД /:id)
+router.get('/employers', authMiddleware, async (req, res) => {
+  try {
+    console.log('GET /user/employers - Request received');
+    const employers = await User.findAll({
+      where: { role: 'employer' },
+      attributes: ['id', 'username', 'email', 'avatar', 'companyName', 'companyDescription'],
+      order: [['companyName', 'ASC'], ['username', 'ASC']]
+    });
+    console.log('Found employers:', employers.length);
+    res.json(employers);
+  } catch (error) {
+    console.error('Error fetching employers:', error);
+    res.status(500).json({ error: 'Ошибка при получении списка работодателей' });
+  }
+});
+
+// GET /api/user/graduates - Получить всех выпускников (должен быть ПЕРЕД /:id)
+router.get('/graduates', authMiddleware, async (req, res) => {
+  try {
+    console.log('GET /user/graduates - Request received');
+    console.log('User ID:', req.userId);
+    console.log('User role:', req.user?.role);
+    
+    const graduates = await User.findAll({
+      where: { role: 'graduate' },
+      attributes: ['id', 'username', 'email', 'avatar', 'firstName', 'lastName'],
+      order: [['lastName', 'ASC'], ['firstName', 'ASC'], ['username', 'ASC']]
+    });
+    console.log('Found graduates:', graduates.length);
+    if (graduates.length > 0) {
+      console.log('Sample graduate:', {
+        id: graduates[0].id,
+        username: graduates[0].username,
+        firstName: graduates[0].firstName,
+        lastName: graduates[0].lastName,
+        email: graduates[0].email
+      });
+    }
+    res.json(graduates);
+  } catch (error) {
+    console.error('Error fetching graduates:', error);
+    console.error('Error stack:', error.stack);
+    res.status(500).json({ error: 'Ошибка при получении списка выпускников' });
+  }
+});
+
 // Просмотр любого профиля (с проверкой прав)
 router.get('/:id', authMiddleware, checkUserIdMatches, cacheMiddleware(600), async (req, res) => {
   try {
