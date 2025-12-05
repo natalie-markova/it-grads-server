@@ -110,8 +110,8 @@ router.put('/profile', authMiddleware, async (req, res) => {
 
     await user.update(req.body);
 
-    // Инвалидируем кэш профиля при обновлении
-    await invalidateCache(`cache:/api/users/*`);
+    // Инвалидируем кэш профиля при обновлении (роут /api/user, не /api/users)
+    await invalidateCache(`cache:/api/user/*`);
 
     res.json(await getUserProfile(req.userId));
   } catch (e) {
@@ -140,7 +140,7 @@ router.post('/upload-avatar', authMiddleware, uploadAvatar.single('avatar'), asy
 
     await user.update(updateData);
 
-    await invalidateCache(`cache:/api/users/*`);
+    await invalidateCache(`cache:/api/user/*`);
 
     res.json({
       message: req.t('user.avatarUpdated'),
@@ -197,7 +197,7 @@ router.post('/upload-photo', authMiddleware, (req, res, next) => {
     }
 
     // Инвалидируем кэш профиля
-    await invalidateCache(`cache:/api/users/*`);
+    await invalidateCache(`cache:/api/user/*`);
 
     res.json({
       message: 'Фото успешно загружено',
@@ -220,7 +220,7 @@ router.delete('/profile', authMiddleware, async (req, res) => {
 
     await user.destroy();
 
-    await invalidateCache(`cache:/api/users/*`);
+    await invalidateCache(`cache:/api/user/*`);
 
     res.json({ message: req.t('user.profileUpdated') });
   } catch (error) {
