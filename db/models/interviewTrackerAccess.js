@@ -44,6 +44,11 @@ module.exports = (sequelize, DataTypes) => {
         type: DataTypes.BOOLEAN,
         defaultValue: true,
       },
+      ownerRole: {
+        type: DataTypes.STRING,
+        allowNull: true, // Временно разрешаем null для обратной совместимости
+        comment: 'Роль владельца календаря (кто предоставляет доступ): graduate или employer'
+      },
     },
     {
       sequelize,
@@ -54,6 +59,8 @@ module.exports = (sequelize, DataTypes) => {
 
   return InterviewTrackerAccess;
 };
+
+
 
 
 
