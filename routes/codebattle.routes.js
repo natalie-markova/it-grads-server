@@ -281,6 +281,88 @@ router.post('/sessions/start', authMiddleware, async (req, res) => {
 });
 
 /**
+ * GET /api/codebattle/sessions/:id/ai-status
+ * Получить статус AI (для polling в режиме VS AI)
+ */
+router.get('/sessions/:id/ai-status', authMiddleware, async (req, res) => {
+  try {
+    const sessionId = req.params.id;
+
+    const session = await db.GameSession.findOne({
+      where: { id: sessionId, userId: req.userId }
+    });
+
+    if (!session) {
+      return res.status(404).json({ error: 'Session not found' });
+    }
+
+    if (session.mode !== 'vs_ai') {
+      return res.status(400).json({ error: 'Not a VS AI session' });
+    }
+
+    // Возвращаем статус AI
+    const aiStatus = {
+      aiSolved: session.aiSolved,
+      aiSolveTime: session.aiSolveTime,
+      aiTestsPassed: session.aiTestsPassed,
+      status: session.aiSolved === null ? 'solving' : session.aiSolved ? 'completed' : 'failed'
+    };
+
+    res.json(aiStatus);
+  } catch (error) {
+    console.error('Error getting AI status:', error);
+    res.status(500).json({ error: 'Failed to get AI status' });
+  }
+});
+
+/**
+ * POST /api/codebattle/sessions/:id/test
+ * Пробное тестирование (только видимые тесты)
+ */
+router.post('/sessions/:id/test', authMiddleware, async (req, res) => {
+  try {
+    const { code, language } = req.body;
+    const sessionId = req.params.id;
+
+    const session = await db.GameSession.findOne({
+      where: { id: sessionId, userId: req.userId },
+      include: [{ model: db.GameTask, as: 'task' }]
+    });
+
+    if (!session) {
+      return res.status(404).json({ error: 'Session not found' });
+    }
+
+    // Фильтруем только видимые тесты
+    const visibleTests = session.task.testCases.filter(test => !test.isHidden);
+
+    // Запускаем только видимые тесты
+    const testResults = await codeExecutor.runTests(code, language, visibleTests);
+
+    // Форматируем результаты для клиента
+    const formattedResults = testResults.results.map(r => ({
+      passed: r.passed,
+      input: r.input,
+      expected: r.expectedOutput,
+      actual: r.actualOutput,
+      error: r.error
+    }));
+
+    res.json({
+      success: testResults.allPassed,
+      testResults: formattedResults,
+      passed: testResults.passed,
+      total: testResults.total,
+      executionTime: testResults.avgTime,
+      memoryUsed: testResults.avgMemory
+    });
+  } catch (error) {
+    console.error('Trial test error:', error);
+    res.status(500).json({ error: 'Trial test failed', details: error.message });
+  }
+});
+
+/**
  * POST /api/codebattle/sessions/:id/submit
  * Отправить решение
  */
@@ -298,8 +380,9 @@ router.post('/sessions/:id/submit', authMiddleware, async (req, res) => {
       return res.status(404).json({ error: 'Session not found' });
     }
 
-    if (session.status !== 'in_progress') {
-      return res.status(400).json({ error: 'Session already completed' });
+    // Разрешаем повторные попытки до успешного решения
+    if (session.status === 'completed' && session.solved) {
+      return res.status(400).json({ error: 'Task already solved' });
     }
 
     // Запускаем тесты

@@ -2,21 +2,22 @@
  * Code Battle AI Service
  *
  * Реальный AI-противник для режима VS AI
- * Использует Groq API (бесплатный, быстрый Llama 3.1)
+ * Использует YandexGPT API
  */
 
 const axios = require('axios');
 
 class CodeBattleAIService {
   constructor() {
-    this.groqApiKey = process.env.GROQ_API_KEY;
-    this.groqApiUrl = 'https://api.groq.com/openai/v1/chat/completions';
+    this.yandexApiKey = process.env.YANDEX_API_KEY;
+    this.yandexFolderId = process.env.YANDEX_FOLDER_ID;
+    this.yandexApiUrl = process.env.YANDEX_API_URL || 'https://llm.api.cloud.yandex.net/foundationModels/v1/completion';
 
     // Модели по сложности AI
     this.models = {
-      easy: 'llama-3.1-8b-instant',      // Быстрая, но менее точная
-      medium: 'llama-3.1-70b-versatile', // Сбалансированная
-      hard: 'llama-3.1-70b-versatile'    // Самая сильная + меньше ограничений
+      easy: 'yandexgpt-lite',       // Легкая модель, быстрая
+      medium: 'yandexgpt',          // Стандартная модель
+      hard: 'yandexgpt'             // Та же модель, но с меньшей температурой
     };
 
     // Температура по сложности (влияет на "умность" AI)
@@ -42,8 +43,8 @@ class CodeBattleAIService {
    * @returns {Promise<Object>} - Решение AI
    */
   async solveTask(task, language, difficulty = 'medium') {
-    if (!this.groqApiKey) {
-      console.warn('GROQ_API_KEY not set, using fallback AI');
+    if (!this.yandexApiKey || !this.yandexFolderId) {
+      console.warn('YandexGPT credentials not set, using fallback AI');
       return this.fallbackSolution(task, language, difficulty);
     }
 
@@ -51,36 +52,44 @@ class CodeBattleAIService {
 
     try {
       const prompt = this.buildPrompt(task, language, difficulty);
+      const systemPrompt = this.getSystemPrompt(difficulty);
+      const modelName = this.models[difficulty] || this.models.medium;
+
+      console.log(`🤖 YandexGPT solving (${difficulty}): ${task.title} in ${language}`);
 
       const response = await axios.post(
-        this.groqApiUrl,
+        this.yandexApiUrl,
         {
-          model: this.models[difficulty] || this.models.medium,
+          modelUri: `gpt://${this.yandexFolderId}/${modelName}/latest`,
+          completionOptions: {
+            stream: false,
+            temperature: this.temperatures[difficulty] || 0.5,
+            maxTokens: 2000
+          },
           messages: [
             {
               role: 'system',
-              content: this.getSystemPrompt(difficulty)
+              text: systemPrompt
             },
             {
               role: 'user',
-              content: prompt
+              text: prompt
             }
-          ],
-          temperature: this.temperatures[difficulty] || 0.5,
-          max_tokens: 2048,
-          top_p: 1
+          ]
         },
         {
           headers: {
-            'Authorization': `Bearer ${this.groqApiKey}`,
+            'Authorization': `Api-Key ${this.yandexApiKey}`,
             'Content-Type': 'application/json'
           },
           timeout: 60000 // 60 сек таймаут
         }
       );
 
-      const aiResponse = response.data.choices[0]?.message?.content || '';
+      const aiResponse = response.data.result?.alternatives?.[0]?.message?.text || '';
       const code = this.extractCode(aiResponse, language);
+
+      console.log(`🤖 YandexGPT response received (${aiResponse.length} chars)`);
 
       // Добавляем искусственную задержку для имитации "размышления"
       const thinkTime = this.getThinkingTime(difficulty);
@@ -91,16 +100,18 @@ class CodeBattleAIService {
 
       const solveTime = Math.floor((Date.now() - startTime) / 1000);
 
+      console.log(`🤖 YandexGPT solved in ${solveTime}s`);
+
       return {
         success: true,
         code,
         solveTime,
         difficulty,
-        model: this.models[difficulty]
+        model: modelName
       };
 
     } catch (error) {
-      console.error('AI solve error:', error.message);
+      console.error('YandexGPT solve error:', error.response?.data || error.message);
       return this.fallbackSolution(task, language, difficulty);
     }
   }
@@ -110,18 +121,18 @@ class CodeBattleAIService {
    */
   getSystemPrompt(difficulty) {
     const prompts = {
-      easy: `You are a beginner programmer solving coding challenges.
-You sometimes make small mistakes like off-by-one errors, forgetting edge cases, or using inefficient algorithms.
-Solve the problem but don't always get it 100% right - make occasional realistic beginner mistakes.
-IMPORTANT: Return ONLY the code solution, no explanations.`,
+      easy: `Ты начинающий программист, решающий задачи по программированию.
+Иногда делаешь небольшие ошибки: ошибки на единицу (off-by-one), забываешь проверить граничные случаи, используешь неэффективные алгоритмы.
+Реши задачу, но не всегда получай 100% правильный результат - делай реалистичные ошибки новичка.
+ВАЖНО: Возвращай ТОЛЬКО код решения, без объяснений. Код должен быть готов к запуску.`,
 
-      medium: `You are an intermediate programmer solving coding challenges.
-You write clean, working code but might miss some edge cases or optimizations.
-IMPORTANT: Return ONLY the code solution, no explanations.`,
+      medium: `Ты программист среднего уровня, решающий задачи по программированию.
+Пишешь чистый, работающий код, но можешь упустить некоторые граничные случаи или оптимизации.
+ВАЖНО: Возвращай ТОЛЬКО код решения, без объяснений. Код должен быть готов к запуску.`,
 
-      hard: `You are an expert competitive programmer solving coding challenges.
-You write optimal, clean, and correct solutions that handle all edge cases.
-IMPORTANT: Return ONLY the code solution, no explanations.`
+      hard: `Ты эксперт в соревновательном программировании, решающий алгоритмические задачи.
+Пишешь оптимальные, чистые и корректные решения, учитывающие все граничные случаи.
+ВАЖНО: Возвращай ТОЛЬКО код решения, без объяснений. Код должен быть готов к запуску.`
     };
 
     return prompts[difficulty] || prompts.medium;
@@ -147,24 +158,24 @@ IMPORTANT: Return ONLY the code solution, no explanations.`
     const visibleTests = (task.testCases || [])
       .filter(tc => !tc.isHidden)
       .slice(0, 3) // Максимум 3 примера
-      .map((tc, i) => `Example ${i + 1}:\nInput: ${JSON.stringify(tc.input)}\nOutput: ${JSON.stringify(tc.expectedOutput)}`)
+      .map((tc, i) => `Пример ${i + 1}:\nВход: ${JSON.stringify(tc.input)}\nВыход: ${JSON.stringify(tc.expectedOutput)}`)
       .join('\n\n');
 
-    return `Solve this coding problem in ${languageNames[language] || language}:
+    return `Реши эту задачу по программированию на языке ${languageNames[language] || language}:
 
-## Problem: ${task.title}
+## Задача: ${task.title}
 
 ${task.description}
 
-## Test Cases:
-${visibleTests}
+## Тестовые случаи:
+${visibleTests || 'Тесты не предоставлены'}
 
-## Requirements:
-- Write a function called "solution" that takes the input and returns the output
-- The solution must pass all test cases
-- Return ONLY the code, no explanations
+## Требования:
+- Напиши функцию с именем "solution", которая принимает входные данные и возвращает результат
+- Решение должно пройти все тестовые случаи
+- Верни ТОЛЬКО код, без объяснений
 
-Write the solution:`;
+Напиши решение:`;
   }
 
   /**
