@@ -147,6 +147,11 @@ class Program {
    * Выполнить код и получить результат
    */
   async executeCode(code, language, stdin = '') {
+    // Для JavaScript и TypeScript используем локальное выполнение
+    if (language.toLowerCase() === 'javascript' || language.toLowerCase() === 'typescript') {
+      return this.executeJsLocally(code, stdin);
+    }
+
     const languageId = this.languageIds[language.toLowerCase()];
 
     if (!languageId) {
@@ -277,12 +282,11 @@ class Program {
 
     for (const testCase of testCases) {
       try {
-        // Формируем stdin из input
-        const stdin = typeof testCase.input === 'string'
-          ? testCase.input
-          : JSON.stringify(testCase.input);
+        // Оборачиваем код пользователя для автоматического запуска с тестовыми данными
+        const wrappedCode = this.wrapCode(code, language, testCase.input);
 
-        const result = await this.executeCode(code, language, stdin);
+        // Выполняем обёрнутый код (stdin не нужен, всё внутри кода)
+        const result = await this.executeCode(wrappedCode, language, '');
 
         // Сравниваем output
         const actualOutput = result.stdout.trim();
@@ -329,6 +333,17 @@ class Program {
       avgTime: results.reduce((sum, r) => sum + r.time, 0) / results.length,
       avgMemory: results.reduce((sum, r) => sum + r.memory, 0) / results.length
     };
+  }
+
+  /**
+   * Оборачивает код пользователя для запуска с тестовыми данными
+   */
+  wrapCode(code, language, input) {
+    const wrapper = this.wrapperTemplates[language.toLowerCase()];
+    if (!wrapper) {
+      throw new Error(`No wrapper template for language: ${language}`);
+    }
+    return wrapper(code, input);
   }
 
   /**
