@@ -101,18 +101,16 @@ async generateGreeting(direction, technologies, level, questionsCount) {
 Всего будет ${questionsCount} вопросов.
 
 ТВОЯ ЗАДАЧА:
-1. Кратко представься (придумай себе имя и должность)
-2. Скажи пару слов о формате интервью
-3. Задай ПЕРВЫЙ вопрос по ${firstTech}
+1. Представься коротко (имя, должность - 1 предложение)
+2. Сразу переходи к делу - задай ПЕРВЫЙ вопрос по ${firstTech}
 
 ТРЕБОВАНИЯ К ПЕРВОМУ ВОПРОСУ:
 - Тип вопроса: ${randomQuestionType}
 - НЕ задавай банальные вопросы типа "что такое ${firstTech}"
-- Придумай УНИКАЛЬНЫЙ вопрос, который ты бы задал на реальном собеседовании
+- Придумай УНИКАЛЬНЫЙ вопрос для реального собеседования
 - Вопрос должен соответствовать уровню ${level}
-- Можешь спросить про конкретную ситуацию, сценарий или проблему
 
-Будь креативным! Каждое интервью должно быть уникальным.`;
+ВАЖНО: Меньше вступлений, больше сути. Не нужно расшаркиваться.`;
 
     const messages = [
         { role: 'system', text: systemPrompt },
@@ -182,9 +180,9 @@ async generateNextMessage(direction, technologies, level, questionsCount, messag
 - Придумай сценарий, проблему или ситуацию
 
 ФОРМАТ:
-[Обратная связь 2-3 предложения]
+[Краткая обратная связь 1-2 предложения] + [Следующий вопрос]
 
-Следующий вопрос: [твой уникальный вопрос]`;
+Без лишней воды, сразу к делу.`;
 
   const messages = [
     { role: 'system', text: systemPrompt },
@@ -194,7 +192,7 @@ async generateNextMessage(direction, technologies, level, questionsCount, messag
     }))
   ];
 
-  return await this.sendRequest(messages, { temperature: 0.85, maxTokens: 400 });
+  return await this.sendRequest(messages, { temperature: 0.8, maxTokens: 300 });
 }
 
   /**

@@ -4,6 +4,7 @@ const { Roadmap, RoadmapProgress } = require('../db/models');
 const { cacheMiddleware } = require('../middleware/cacheMiddleware');
 const verifyToken = require('../middleware/verifyToken');
 const skillAggregator = require('../services/skillAggregator.service');
+const developmentPlanSync = require('../services/developmentPlanSync.service');
 const { i18nMiddleware } = require('../config/i18n');
 
 // Apply i18n middleware to all routes
@@ -174,6 +175,19 @@ router.post('/:slug/progress', verifyToken, async (req, res) => {
 
     // Триггерим пересчёт радара навыков (асинхронно)
     skillAggregator.triggerRecalculation(req.user.id, 'roadmap');
+
+    // Синхронизируем план развития (асинхронно)
+    setImmediate(async () => {
+      try {
+        await developmentPlanSync.onRoadmapProgressChanged(req.user.id, {
+          roadmapId: roadmap.id,
+          progress: progressPercent,
+          startedAt: progress.startedAt
+        });
+      } catch (err) {
+        console.error('Error syncing development plan:', err);
+      }
+    });
 
     res.json({
       message: req.t('roadmap.progressSaved'),

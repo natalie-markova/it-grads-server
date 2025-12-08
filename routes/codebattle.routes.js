@@ -8,6 +8,7 @@ const codeExecutor = require('../services/codeExecutor.service');
 const codeforcesSync = require('../services/codeforcesSync.service');
 const codeBattleAI = require('../services/codeBattleAI.service');
 const skillAggregator = require('../services/skillAggregator.service');
+const developmentPlanSync = require('../services/developmentPlanSync.service');
 
 // ==================== TASKS ====================
 
@@ -533,6 +534,21 @@ router.post('/sessions/:id/submit', authMiddleware, async (req, res) => {
 
     // Триггерим пересчёт радара навыков (асинхронно)
     skillAggregator.triggerRecalculation(req.userId, 'codebattle');
+
+    // Синхронизируем план развития (асинхронно, если задача решена)
+    if (solved) {
+      setImmediate(async () => {
+        try {
+          await developmentPlanSync.onCodeBattleSolved(req.userId, session, session.task);
+          // Также обновляем при изменении рейтинга
+          if (session.mode === 'vs_ai') {
+            await developmentPlanSync.onRatingChanged(req.userId, playerRating);
+          }
+        } catch (err) {
+          console.error('Error syncing development plan:', err);
+        }
+      });
+    }
 
     res.json({
       solved,

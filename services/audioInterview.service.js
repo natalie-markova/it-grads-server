@@ -7,58 +7,104 @@
 const yandexGPTService = require('./yandexGPT.service');
 
 const personaPresets = {
-  strict_hr: {
-    title: 'Строгий HR-директор',
-    name: 'Елена Викторовна',
-    gender: 'female',
-    tone: 'профессиональный и требовательный',
-    style: `Ты строгий HR-директор Елена Викторовна из крупной IT-компании. Характер: деловая, внимательная к деталям, но справедливая.
+  ru: {
+    strict_hr: {
+      title: 'Строгий HR-директор',
+      name: 'Елена Викторовна',
+      gender: 'female',
+      tone: 'профессиональный и требовательный',
+      style: `Ты строгий HR-директор Елена Викторовна из крупной IT-компании. Характер: деловая, внимательная к деталям, но справедливая.
 - Говоришь коротко и по делу
 - Ценишь конкретику и цифры в ответах
 - Можешь пошутить, но сдержанно
 - Если кандидат отвлекается - мягко возвращаешь к теме`,
-  },
-  friendly_tech: {
-    title: 'Дружелюбный тимлид',
-    name: 'Алексей',
-    gender: 'male',
-    tone: 'технический и поддерживающий',
-    style: `Ты дружелюбный тимлид Алексей, 8 лет в разработке. Характер: открытый, с юмором, любишь обсуждать технологии.
+    },
+    friendly_tech: {
+      title: 'Дружелюбный тимлид',
+      name: 'Алексей',
+      gender: 'male',
+      tone: 'технический и поддерживающий',
+      style: `Ты дружелюбный тимлид Алексей, 8 лет в разработке. Характер: открытый, с юмором, любишь обсуждать технологии.
 - Общаешься на "ты", неформально
 - Интересуешься опытом кандидата, задаёшь уточняющие вопросы
 - Если кандидат хочет поговорить на отвлечённую тему - поддерживаешь, но потом возвращаешься к делу
 - Делишься своим опытом, если это уместно`,
-  },
-  direct_ceo: {
-    title: 'Прямолинейный CEO',
-    name: 'Дмитрий',
-    gender: 'male',
-    tone: 'деловой и конкретный',
-    style: `Ты CEO стартапа Дмитрий. Характер: энергичный, прямой, ценит время.
+    },
+    direct_ceo: {
+      title: 'Прямолинейный CEO',
+      name: 'Дмитрий',
+      gender: 'male',
+      tone: 'деловой и конкретный',
+      style: `Ты CEO стартапа Дмитрий. Характер: энергичный, прямой, ценит время.
 - Задаёшь вопросы о результатах и достижениях
 - Говоришь кратко, но можешь увлечься обсуждением интересной идеи
 - Интересуешься мотивацией и амбициями кандидата
 - Любишь нестандартные вопросы`,
+    },
+  },
+  en: {
+    strict_hr: {
+      title: 'Strict HR Director',
+      name: 'Helen',
+      gender: 'female',
+      tone: 'professional and demanding',
+      style: `You are a strict HR Director Helen from a large IT company. Character: businesslike, detail-oriented, but fair.
+- You speak briefly and to the point
+- You value specifics and numbers in answers
+- You may joke, but restrainedly
+- If the candidate gets distracted - you gently bring them back to the topic`,
+    },
+    friendly_tech: {
+      title: 'Friendly Tech Lead',
+      name: 'Alex',
+      gender: 'male',
+      tone: 'technical and supportive',
+      style: `You are a friendly tech lead Alex, 8 years in development. Character: open, humorous, loves discussing technologies.
+- You communicate informally
+- You're interested in the candidate's experience, ask clarifying questions
+- If the candidate wants to talk about a side topic - you support it briefly, then return to business
+- You share your experience if appropriate`,
+    },
+    direct_ceo: {
+      title: 'Direct CEO',
+      name: 'David',
+      gender: 'male',
+      tone: 'businesslike and specific',
+      style: `You are a startup CEO David. Character: energetic, direct, values time.
+- You ask questions about results and achievements
+- You speak briefly, but can get carried away discussing an interesting idea
+- You're interested in the candidate's motivation and ambitions
+- You like unconventional questions`,
+    },
   },
 };
 
 class AudioInterviewService {
-  getPersonaConfig(persona) {
-    return personaPresets[persona] || null;
+  getPersonaConfig(persona, lang = 'ru') {
+    const langPresets = personaPresets[lang] || personaPresets.ru;
+    return langPresets[persona] || null;
   }
 
   /**
    * Генерировать приветствие и первый вопрос через YandexGPT
    * Полностью динамическая генерация для максимальной рандомизации
    */
-  async generateGreeting(persona, position) {
-    const personaConfig = this.getPersonaConfig(persona);
+  async generateGreeting(persona, position, lang = 'ru') {
+    const personaConfig = this.getPersonaConfig(persona, lang);
     if (!personaConfig) {
       throw new Error('Invalid persona');
     }
 
     // Случайные варианты первого вопроса для разнообразия
-    const firstQuestionTypes = [
+    const firstQuestionTypes = lang === 'en' ? [
+      'Ask about a recent project the candidate is proud of',
+      'Ask them to tell about the most interesting task in the last year',
+      'Ask what attracted them to this position',
+      'Ask them to briefly describe their path in development',
+      'Ask about their favorite tech stack and why',
+      'Ask them to tell about something new they recently learned',
+      'Ask about the most difficult bug they had to find'
+    ] : [
       'Спроси о недавнем проекте, которым кандидат гордится',
       'Попроси рассказать о самой интересной задаче за последний год',
       'Спроси, что привлекло в этой позиции',
@@ -69,43 +115,48 @@ class AudioInterviewService {
     ];
     const randomFirstQuestion = firstQuestionTypes[Math.floor(Math.random() * firstQuestionTypes.length)];
 
-    // Случайное настроение/вайб для начала
-    const moods = [
-      'У тебя сегодня хорошее настроение, ты настроен на продуктивную беседу.',
-      'Ты немного устал от формальных интервью и хочешь поговорить по-человечески.',
-      'Тебе искренне интересен кандидат как специалист.',
-      'Ты в приподнятом настроении после хорошего кофе.'
-    ];
-    const randomMood = moods[Math.floor(Math.random() * moods.length)];
+    const systemPrompt = lang === 'en'
+      ? `${personaConfig.style}
 
-    const systemPrompt = `${personaConfig.style}
+SITUATION: Beginning of an interview for the "${position}" position.
 
-${randomMood}
+YOUR TASK:
+1. Introduce yourself briefly (${personaConfig.name}, position - 1 sentence)
+2. Immediately ${randomFirstQuestion}
+
+IMPORTANT:
+- Speak naturally but to the point
+- No unnecessary introductions about weather/coffee/journey
+- 2-3 sentences maximum
+- Get straight to the point
+- RESPOND ONLY IN ENGLISH`
+      : `${personaConfig.style}
 
 СИТУАЦИЯ: Начало собеседования на позицию "${position}".
 
 ТВОЯ ЗАДАЧА:
-1. Представься по имени (${personaConfig.name}) - можешь добавить что-то неформальное
-2. Скажи пару слов, чтобы расслабить кандидата (погода, офис, как добрался - придумай что-то)
-3. ${randomFirstQuestion}
+1. Представься коротко (${personaConfig.name}, должность - 1 предложение)
+2. Сразу ${randomFirstQuestion}
 
 ВАЖНО:
-- Говори ЕСТЕСТВЕННО, как живой человек
-- НЕ используй шаблонные фразы типа "расскажите о себе"
-- Придумай что-то оригинальное
-- 3-4 предложения максимум`;
+- Говори естественно, но по делу
+- Без лишних вступлений про погоду/кофе/дорогу
+- 2-3 предложения максимум
+- Сразу к сути`;
 
     const messages = [
       { role: 'system', text: systemPrompt },
-      { role: 'user', text: 'Начни собеседование' }
+      { role: 'user', text: lang === 'en' ? 'Start the interview' : 'Начни собеседование' }
     ];
 
     try {
-      return await yandexGPTService.sendRequest(messages, { temperature: 0.9, maxTokens: 300 });
+      return await yandexGPTService.sendRequest(messages, { temperature: 0.85, maxTokens: 200 });
     } catch (error) {
       console.error('Error generating greeting:', error);
       // Fallback
-      return `Привет! Меня зовут ${personaConfig.name}, я ${personaConfig.title.toLowerCase()}. Рад познакомиться! Расскажи немного о себе и своём опыте в ${position}.`;
+      return lang === 'en'
+        ? `Hi! My name is ${personaConfig.name}, I'm a ${personaConfig.title.toLowerCase()}. Nice to meet you! Tell me a bit about yourself and your experience in ${position}.`
+        : `Привет! Меня зовут ${personaConfig.name}, я ${personaConfig.title.toLowerCase()}. Рад познакомиться! Расскажи немного о себе и своём опыте в ${position}.`;
     }
   }
 
@@ -164,9 +215,10 @@ ${randomMood}
 - Можешь придумать конкретную ситуацию или сценарий
 
 ПРАВИЛА ДИАЛОГА:
-- Если кандидат задаёт вопрос тебе - отвечай!
-- Если кандидат говорит на отвлечённую тему - поддержи коротко, потом вернись к делу
-- Максимум 4 предложения в ответе`;
+- Если кандидат задаёт вопрос - ответь коротко и вернись к теме
+- Отвлечённые темы - 1 фраза максимум, сразу к делу
+- Максимум 3 предложения в ответе
+- Меньше болтовни, больше сути`;
 
     const messages = [
       { role: 'system', text: systemPrompt },
@@ -177,10 +229,10 @@ ${randomMood}
     ];
 
     try {
-      return await yandexGPTService.sendRequest(messages, { temperature: 0.9, maxTokens: 350 });
+      return await yandexGPTService.sendRequest(messages, { temperature: 0.85, maxTokens: 250 });
     } catch (error) {
       console.error('Error generating next question:', error);
-      return 'Интересно! А расскажи о самом сложном проекте в твоей карьере - как справился с трудностями?';
+      return 'Понял. А какой самый сложный проект у тебя был?';
     }
   }
 

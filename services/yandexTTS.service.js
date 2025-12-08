@@ -8,15 +8,25 @@ const axios = require('axios');
 // Доступные голоса YandexSpeechKit (актуальные на 2025)
 // https://yandex.cloud/docs/speechkit/tts/voices
 const VOICES = {
-  female: [
-    { id: 'alena', name: 'Алёна', emotion: 'neutral' },
-    { id: 'jane', name: 'Джейн', emotion: 'neutral' },
-  ],
-  male: [
-    { id: 'filipp', name: 'Филипп', emotion: 'neutral' },
-    { id: 'ermil', name: 'Ермил', emotion: 'neutral' },
-    { id: 'zahar', name: 'Захар', emotion: 'neutral' },
-  ]
+  ru: {
+    female: [
+      { id: 'alena', name: 'Алёна', emotion: 'neutral' },
+      { id: 'jane', name: 'Джейн', emotion: 'neutral' },
+    ],
+    male: [
+      { id: 'filipp', name: 'Филипп', emotion: 'neutral' },
+      { id: 'ermil', name: 'Ермил', emotion: 'neutral' },
+      { id: 'zahar', name: 'Захар', emotion: 'neutral' },
+    ]
+  },
+  en: {
+    female: [
+      { id: 'john', name: 'John', emotion: 'neutral' }, // en-US голос
+    ],
+    male: [
+      { id: 'john', name: 'John', emotion: 'neutral' }, // en-US голос
+    ]
+  }
 };
 
 class YandexTTSService {
@@ -37,14 +47,17 @@ class YandexTTSService {
   /**
    * Получить случайный голос
    * @param {string} gender - 'male' или 'female', если не указан - случайный
+   * @param {string} lang - 'ru' или 'en', по умолчанию 'ru'
    */
-  getRandomVoice(gender = null) {
+  getRandomVoice(gender = null, lang = 'ru') {
     const selectedGender = gender || (Math.random() > 0.5 ? 'female' : 'male');
-    const voices = VOICES[selectedGender];
+    const langVoices = VOICES[lang] || VOICES.ru;
+    const voices = langVoices[selectedGender] || langVoices.male;
     const randomVoice = voices[Math.floor(Math.random() * voices.length)];
     return {
       ...randomVoice,
-      gender: selectedGender
+      gender: selectedGender,
+      lang: lang
     };
   }
 
@@ -66,14 +79,19 @@ class YandexTTSService {
       throw new Error('TTS service not configured: missing folder ID');
     }
 
-    const voice = options.voice || this.getRandomVoice(options.gender);
+    // Определяем язык для голоса
+    const lang = options.lang || 'ru';
+    const voice = options.voice || this.getRandomVoice(options.gender, lang);
 
     // Используем oggopus формат - поддерживается YandexSpeechKit и браузерами
     const mimeType = 'audio/ogg';
 
+    // Язык для синтеза: ru-RU или en-US
+    const ttsLang = lang === 'en' ? 'en-US' : 'ru-RU';
+
     const params = new URLSearchParams({
       text: text,
-      lang: 'ru-RU',
+      lang: ttsLang,
       voice: voice.id,
       speed: options.speed || '1.0',
       format: 'oggopus',

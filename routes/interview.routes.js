@@ -1,11 +1,12 @@
 const express = require('express');
 const router = express.Router();
-const { AIInterviewSession, AIInterviewMessage } = require('../db/models');
+const { AIInterviewSession, AIInterviewMessage, PracticeQuizResult } = require('../db/models');
 const authMiddleware = require('../middleware/authMiddleware');
 const yandexGPTService = require('../services/yandexGPT.service');
 const audioInterviewService = require('../services/audioInterview.service');
 const yandexTTSService = require('../services/yandexTTS.service');
 const skillAggregator = require('../services/skillAggregator.service');
+const planSync = require('../services/developmentPlanSync.service');
 const { i18nMiddleware } = require('../config/i18n');
 
 // Apply i18n middleware to all routes
@@ -85,7 +86,7 @@ router.get('/my', authMiddleware, async (req, res) => {
 // POST /api/interviews/tts - Синтез речи через YandexSpeechKit
 router.post('/tts', async (req, res) => {
   try {
-    const { text, gender, voiceId } = req.body;
+    const { text, gender, voiceId, lang } = req.body;
 
     if (!text || !text.trim()) {
       return res.status(400).json({ error: req.t('interview.textRequired') });
@@ -101,6 +102,8 @@ router.post('/tts', async (req, res) => {
     if (voiceId) {
       options.voice = { id: voiceId, emotion: 'neutral' };
     }
+    // Передаём язык для выбора голоса (en или ru)
+    if (lang) options.lang = lang;
 
     const result = await yandexTTSService.synthesize(text, options);
 
@@ -128,7 +131,7 @@ router.get('/tts/voices', (req, res) => {
 // POST /api/interviews/audio - Создать новую сессию аудио-интервью
 router.post('/audio', authMiddleware, async (req, res) => {
   try {
-    const { interviewerPersona, position } = req.body;
+    const { interviewerPersona, position, lang } = req.body;
     const userId = req.userId;
 
     if (!interviewerPersona || !position) {
@@ -142,18 +145,19 @@ router.post('/audio', authMiddleware, async (req, res) => {
       return res.status(400).json({ error: req.t('interview.invalidPersona') });
     }
 
-    // Создаем сессию
+    // Создаем сессию с языком
     const session = await AIInterviewSession.create({
       userId,
       interviewerPersona,
       position,
+      lang: lang || 'ru',
       status: 'in-progress',
       currentQuestionIndex: 0,
       questionsCount: 5
     });
 
-    // Генерируем приветствие и первый вопрос через YandexGPT
-    const greetingContent = await audioInterviewService.generateGreeting(interviewerPersona, position);
+    // Генерируем приветствие и первый вопрос через YandexGPT (с учётом языка)
+    const greetingContent = await audioInterviewService.generateGreeting(interviewerPersona, position, lang || 'ru');
 
     const firstMessage = await AIInterviewMessage.create({
       sessionId: session.id,
@@ -297,6 +301,11 @@ router.post('/audio/:sessionId/complete', authMiddleware, async (req, res) => {
     // Триггерим пересчёт радара навыков (асинхронно)
     skillAggregator.triggerRecalculation(userId, 'audioInterview');
 
+    // Обновляем план развития (синхронизируем с аудио-интервью)
+    planSync.onInterviewCompleted(userId, { ...session.toJSON(), type: 'audio' }).catch(err => {
+      console.error('Error syncing audio interview with plan:', err);
+    });
+
     res.json({
       overallScore: summary.overallScore,
       strengths: summary.strengths,
@@ -439,6 +448,11 @@ router.post('/:sessionId/complete', authMiddleware, async (req, res) => {
     // Триггерим пересчёт радара навыков (асинхронно)
     skillAggregator.triggerRecalculation(userId, 'aiInterview');
 
+    // Обновляем план развития (синхронизируем с интервью)
+    planSync.onInterviewCompleted(userId, { ...session.toJSON(), type: 'ai' }).catch(err => {
+      console.error('Error syncing interview with plan:', err);
+    });
+
     res.json({
         totalScore: feedback.totalScore,
         strengths: feedback.strengths,
@@ -471,6 +485,122 @@ router.delete('/:sessionId', authMiddleware, async (req, res) => {
   } catch (error) {
     console.error('Error deleting interview session:', error);
     res.status(500).json({ error: req.t('interview.deleteError') });
+  }
+});
+
+// ============= PRACTICE QUIZ ROUTES =============
+
+// POST /api/interviews/practice/complete - Сохранить результаты практики с вопросами
+router.post('/practice/complete', authMiddleware, async (req, res) => {
+  try {
+    const userId = req.userId;
+    const { category, totalQuestions, correctAnswers, answers, duration } = req.body;
+
+    if (!category || totalQuestions === undefined || correctAnswers === undefined) {
+      return res.status(400).json({
+        error: req.t('interview.missingFields', 'Не указаны обязательные поля')
+      });
+    }
+
+    const percentage = Math.round((correctAnswers / totalQuestions) * 100);
+
+    // Создаем запись результата
+    const result = await PracticeQuizResult.create({
+      userId,
+      category,
+      totalQuestions,
+      correctAnswers,
+      percentage,
+      answers: answers || [],
+      duration: duration || null,
+      completedAt: new Date()
+    });
+
+    // Триггерим пересчёт радара навыков
+    skillAggregator.triggerRecalculation(userId, 'practiceQuiz');
+
+    // Обновляем план развития (синхронизируем с практикой)
+    planSync.onInterviewCompleted(userId, {
+      id: result.id,
+      type: 'practice',
+      category,
+      percentage,
+      correctAnswers,
+      totalQuestions
+    }).catch(err => {
+      console.error('Error syncing practice quiz with plan:', err);
+    });
+
+    res.status(201).json({
+      id: result.id,
+      category,
+      totalQuestions,
+      correctAnswers,
+      percentage,
+      message: req.t('interview.practiceCompleted', 'Практика успешно завершена')
+    });
+  } catch (error) {
+    console.error('Error saving practice quiz result:', error);
+    res.status(500).json({ error: req.t('interview.practiceError', 'Ошибка сохранения результатов') });
+  }
+});
+
+// GET /api/interviews/practice/stats - Получить статистику практики пользователя
+router.get('/practice/stats', authMiddleware, async (req, res) => {
+  try {
+    const userId = req.userId;
+
+    const results = await PracticeQuizResult.findAll({
+      where: { userId },
+      order: [['completedAt', 'DESC']]
+    });
+
+    // Группируем по категориям
+    const statsByCategory = {};
+    results.forEach(result => {
+      if (!statsByCategory[result.category]) {
+        statsByCategory[result.category] = {
+          category: result.category,
+          attempts: 0,
+          totalCorrect: 0,
+          totalQuestions: 0,
+          bestPercentage: 0,
+          averagePercentage: 0,
+          lastAttempt: null
+        };
+      }
+
+      const stat = statsByCategory[result.category];
+      stat.attempts++;
+      stat.totalCorrect += result.correctAnswers;
+      stat.totalQuestions += result.totalQuestions;
+      stat.bestPercentage = Math.max(stat.bestPercentage, result.percentage);
+
+      if (!stat.lastAttempt || new Date(result.completedAt) > new Date(stat.lastAttempt)) {
+        stat.lastAttempt = result.completedAt;
+      }
+    });
+
+    // Рассчитываем средний процент
+    Object.values(statsByCategory).forEach(stat => {
+      stat.averagePercentage = Math.round((stat.totalCorrect / stat.totalQuestions) * 100);
+    });
+
+    res.json({
+      totalAttempts: results.length,
+      categories: Object.values(statsByCategory),
+      recentResults: results.slice(0, 10).map(r => ({
+        id: r.id,
+        category: r.category,
+        correctAnswers: r.correctAnswers,
+        totalQuestions: r.totalQuestions,
+        percentage: r.percentage,
+        completedAt: r.completedAt
+      }))
+    });
+  } catch (error) {
+    console.error('Error fetching practice stats:', error);
+    res.status(500).json({ error: req.t('interview.fetchError', 'Ошибка получения статистики') });
   }
 });
 

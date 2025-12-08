@@ -1165,8 +1165,17 @@ class SkillAggregatorService {
     // Асинхронный пересчёт (не блокирует вызывающий код)
     setImmediate(async () => {
       try {
-        await this.recalculateRadar(userId);
+        const skillScore = await this.recalculateRadar(userId);
         console.log(`[SkillAggregator] Recalculation completed for user ${userId}`);
+
+        // Синхронизируем план развития с обновлённым радаром
+        try {
+          const developmentPlanSync = require('./developmentPlanSync.service');
+          await developmentPlanSync.syncWithRadar(userId, skillScore);
+          console.log(`[SkillAggregator] Development plan synced for user ${userId}`);
+        } catch (syncError) {
+          console.error(`[SkillAggregator] Development plan sync failed for user ${userId}:`, syncError);
+        }
       } catch (error) {
         console.error(`[SkillAggregator] Recalculation failed for user ${userId}:`, error);
       }
