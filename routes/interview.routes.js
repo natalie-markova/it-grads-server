@@ -16,8 +16,9 @@ router.use(i18nMiddleware);
 // POST /api/interviews - Создать новую сессию AI интервью
 router.post('/', authMiddleware, async (req, res) => {
   try {
-    const { direction, technologies, level, questionsCount } = req.body;
+    const { direction, technologies, level, questionsCount, lang } = req.body;
     const userId = req.userId;
+    const language = lang || 'ru';
 
     if (!direction || !technologies || !level) {
       return res.status(400).json({
@@ -32,6 +33,7 @@ router.post('/', authMiddleware, async (req, res) => {
       technologies,
       level,
       questionsCount: questionsCount || 10,
+      lang: language,
       status: 'in-progress'
     });
 
@@ -40,7 +42,8 @@ router.post('/', authMiddleware, async (req, res) => {
         direction,
         technologies,
         level,
-        questionsCount || 10
+        questionsCount || 10,
+        language
     );
 
     const firstMessage = await AIInterviewMessage.create({
@@ -352,7 +355,7 @@ router.get('/:sessionId', authMiddleware, async (req, res) => {
 router.post('/:sessionId/message', authMiddleware, async (req, res) => {
   try {
     const { sessionId } = req.params;
-    const { content } = req.body;
+    const { content, lang } = req.body;
     const userId = req.userId;
 
     if (!content || !content.trim()) {
@@ -372,6 +375,9 @@ router.post('/:sessionId/message', authMiddleware, async (req, res) => {
       return res.status(404).json({ error: req.t('interview.sessionNotFound') });
     }
 
+    // Используем язык из запроса или из сессии
+    const language = lang || session.lang || 'ru';
+
     // Сохраняем сообщение пользователя
     const userMessage = await AIInterviewMessage.create({
       sessionId: session.id,
@@ -386,7 +392,8 @@ router.post('/:sessionId/message', authMiddleware, async (req, res) => {
         session.technologies,
         session.level,
         session.questionsCount,
-        messageHistory
+        messageHistory,
+        language
     );
     const aiMessage = await AIInterviewMessage.create({
       sessionId: session.id,
@@ -413,6 +420,7 @@ router.post('/:sessionId/message', authMiddleware, async (req, res) => {
 router.post('/:sessionId/complete', authMiddleware, async (req, res) => {
   try {
     const { sessionId } = req.params;
+    const { lang } = req.body;
     const userId = req.userId;
 
     const session = await AIInterviewSession.findOne({
@@ -428,12 +436,16 @@ router.post('/:sessionId/complete', authMiddleware, async (req, res) => {
       return res.status(404).json({ error: req.t('interview.sessionNotFound') });
     }
 
+    // Используем язык из запроса или из сессии
+    const language = lang || session.lang || 'ru';
+
     // Генерируем итоговую оценку через YandexGPT
     const feedback = await yandexGPTService.generateFeedback(
         session.direction,
         session.technologies,
         session.level,
-        session.messages
+        session.messages,
+        language
     );
 
     await session.update({

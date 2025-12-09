@@ -248,16 +248,63 @@ router.post('/', verifyToken, async (req, res) => {
 /**
  * GET /api/development-plan/active
  * Получить активный план пользователя
+ * Автоматически синхронизирует план с текущими данными
  */
 router.get('/active', verifyToken, async (req, res) => {
   try {
     const userId = req.user.id;
-    const { lang = 'ru' } = req.query;
+    const { lang = 'ru', sync = 'true' } = req.query;
+    const isEn = lang === 'en';
+
+    // Если sync=true (по умолчанию), сначала синхронизируем план
+    if (sync === 'true') {
+      try {
+        await planSync.fullSync(userId);
+      } catch (syncError) {
+        console.error('Error during auto-sync:', syncError);
+        // Продолжаем даже если синхронизация не удалась
+      }
+    }
 
     const status = await planSync.getPlanStatus(userId);
 
     if (!status.hasPlan) {
       return res.json({ hasPlan: false });
+    }
+
+    // Локализуем шаги
+    if (status.steps) {
+      status.steps = status.steps.map(step => ({
+        ...step,
+        title: isEn && step.titleEn ? step.titleEn : step.title,
+        description: isEn && step.descriptionEn ? step.descriptionEn : step.description
+      }));
+    }
+
+    // Локализуем currentStep
+    if (status.currentStep) {
+      status.currentStep = {
+        ...status.currentStep,
+        title: isEn && status.currentStep.titleEn ? status.currentStep.titleEn : status.currentStep.title,
+        description: isEn && status.currentStep.descriptionEn ? status.currentStep.descriptionEn : status.currentStep.description
+      };
+    }
+
+    // Локализуем nextStep
+    if (status.nextStep) {
+      status.nextStep = {
+        ...status.nextStep,
+        title: isEn && status.nextStep.titleEn ? status.nextStep.titleEn : status.nextStep.title,
+        description: isEn && status.nextStep.descriptionEn ? status.nextStep.descriptionEn : status.nextStep.description
+      };
+    }
+
+    // Локализуем targetPositionTitle
+    if (status.plan && isEn) {
+      const plan = await planSync.getActivePlan(userId);
+      if (plan && plan.targetPositionTitleEn) {
+        status.plan.targetPositionTitle = plan.targetPositionTitleEn;
+      }
     }
 
     res.json(status);
@@ -290,6 +337,103 @@ router.post('/sync', verifyToken, async (req, res) => {
   } catch (error) {
     console.error('Error syncing plan:', error);
     res.status(500).json({ error: 'Ошибка синхронизации' });
+  }
+});
+
+/**
+ * POST /api/development-plan/fix-unlock
+ * Принудительно разблокировать следующий шаг (для исправления багов)
+ */
+router.post('/fix-unlock', verifyToken, async (req, res) => {
+  try {
+    const userId = req.user.id;
+
+    const plan = await planSync.getActivePlan(userId);
+    if (!plan) {
+      return res.status(404).json({ error: 'Активный план не найден' });
+    }
+
+    const steps = plan.steps || [];
+    let modified = false;
+
+    console.log('[FixUnlock] Current state:', {
+      steps: steps.map(s => ({ title: s.title, status: s.status, order: s.order }))
+    });
+
+    // Сначала проверяем roadmap шаги - отмечаем завершёнными если прогресс 100%
+    const roadmapProgress = await db.RoadmapProgress.findAll({ where: { userId } });
+
+    for (const step of steps) {
+      if (step.type === 'roadmap' && step.status !== 'completed') {
+        let rp = null;
+
+        // Ищем прогресс по roadmapId
+        if (step.roadmapId) {
+          rp = roadmapProgress.find(p => parseInt(p.roadmapId, 10) === parseInt(step.roadmapId, 10));
+        }
+
+        // Или по slug
+        if (!rp && step.roadmapSlug) {
+          const roadmap = await db.Roadmap.findOne({ where: { slug: step.roadmapSlug } });
+          if (roadmap) {
+            rp = roadmapProgress.find(p => parseInt(p.roadmapId, 10) === roadmap.id);
+            if (rp && !step.roadmapId) {
+              step.roadmapId = roadmap.id;
+            }
+          }
+        }
+
+        if (rp && rp.progress >= (step.requiredProgress || 100)) {
+          console.log('[FixUnlock] Marking roadmap step as completed:', step.title, 'progress:', rp.progress);
+          step.status = 'completed';
+          step.completedAt = new Date();
+          step.currentProgress = rp.progress;
+          modified = true;
+        }
+      }
+    }
+
+    // Теперь разблокируем следующие шаги
+    for (const step of steps) {
+      if (step.status === 'locked') {
+        const stepOrder = parseInt(step.order, 10);
+        const previousSteps = steps.filter(s => parseInt(s.order, 10) < stepOrder);
+        const allPreviousCompleted = previousSteps.every(s => s.status === 'completed');
+
+        if (allPreviousCompleted) {
+          console.log('[FixUnlock] Unlocking step:', step.title);
+          step.status = 'in_progress';
+          step.unlockedAt = new Date();
+          modified = true;
+          break; // Разблокируем только первый
+        }
+      }
+    }
+
+    if (modified) {
+      // ВАЖНО: Sequelize JSONB fix
+      plan.steps = JSON.parse(JSON.stringify(steps));
+      plan.changed('steps', true);
+      plan.overallProgress = plan.calculateOverallProgress();
+      plan.lastSyncAt = new Date();
+      await plan.save();
+
+      console.log('[FixUnlock] Saved steps:', plan.steps?.map(s => ({ title: s.title, status: s.status })));
+    }
+
+    res.json({
+      message: modified ? 'План исправлен' : 'Нечего исправлять',
+      steps: plan.steps?.map(s => ({
+        title: s.title,
+        status: s.status,
+        order: s.order,
+        currentProgress: s.currentProgress,
+        requiredProgress: s.requiredProgress
+      }))
+    });
+  } catch (error) {
+    console.error('Error fixing unlock:', error);
+    res.status(500).json({ error: 'Ошибка исправления' });
   }
 });
 
@@ -413,13 +557,39 @@ router.post('/steps/:stepId/complete', verifyToken, async (req, res) => {
 
     // Отмечаем как завершённый
     step.status = 'completed';
-    step.completedAt = new Date();
+    step.completedAt = new Date().toISOString();
 
     // Разблокируем следующий шаг
-    const nextStep = steps.find(s => s.order > step.order && s.status === 'locked');
-    if (nextStep) {
-      nextStep.status = 'in_progress';
-      nextStep.unlockedAt = new Date();
+    let nextStepData = null;
+
+    // Сначала ищем следующий locked шаг для разблокировки
+    const nextLockedStep = steps.find(s => s.order > step.order && s.status === 'locked');
+    if (nextLockedStep) {
+      // Проверяем, что все предыдущие шаги завершены
+      const previousSteps = steps.filter(s => s.order < nextLockedStep.order);
+      const allPreviousCompleted = previousSteps.every(s => s.status === 'completed');
+
+      if (allPreviousCompleted) {
+        nextLockedStep.status = 'in_progress';
+        nextLockedStep.unlockedAt = new Date().toISOString();
+        nextLockedStep.startedAt = new Date().toISOString();
+        nextStepData = nextLockedStep;
+      }
+    }
+
+    // Если не нашли locked для разблокировки, ищем уже активный (in_progress или unlocked)
+    if (!nextStepData) {
+      const currentActiveStep = steps.find(s =>
+        s.order > step.order && (s.status === 'in_progress' || s.status === 'unlocked')
+      );
+      if (currentActiveStep) {
+        // Если был unlocked - переводим в in_progress
+        if (currentActiveStep.status === 'unlocked') {
+          currentActiveStep.status = 'in_progress';
+          currentActiveStep.startedAt = new Date().toISOString();
+        }
+        nextStepData = currentActiveStep;
+      }
     }
 
     plan.steps = steps;
@@ -435,10 +605,14 @@ router.post('/steps/:stepId/complete', verifyToken, async (req, res) => {
 
     await plan.save();
 
+    // Возвращаем полные данные для обновления UI
     res.json({
       message: 'Шаг отмечен как выполненный',
       step,
-      overallProgress: plan.overallProgress
+      nextStep: nextStepData,
+      overallProgress: plan.overallProgress,
+      planStatus: plan.status,
+      steps: plan.steps // Возвращаем все шаги для полного обновления
     });
   } catch (error) {
     console.error('Error completing step:', error);

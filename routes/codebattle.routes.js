@@ -33,9 +33,9 @@ router.get('/tasks', cacheMiddleware(300), async (req, res) => {
 
     const { rows: tasks, count } = await db.GameTask.findAndCountAll({
       where,
-      attributes: ['id', 'title', 'difficulty', 'category', 'tags', 'points', 'timeLimit', 'languages', 'solvedCount', 'attemptCount', 'externalUrl', 'externalSource'],
+      attributes: ['id', 'title', 'difficulty', 'category', 'tags', 'points', 'timeLimit', 'languages', 'solvedCount', 'attemptCount', 'externalUrl', 'externalSource', 'description'],
       order: [
-        // Локальные задачи первыми (у них нет externalSource или externalSource = 'local')
+        // Задачи с описанием (локальные) первыми, Codeforces задачи после них
         [db.sequelize.literal("CASE WHEN \"externalSource\" IS NULL OR \"externalSource\" = 'local' THEN 0 ELSE 1 END"), 'ASC'],
         ['createdAt', 'DESC']
       ],
@@ -73,10 +73,18 @@ router.get('/tasks/daily', cacheMiddleware(3600), async (req, res) => {
       }
     });
 
-    // Если нет задачи на сегодня, выбираем случайную
+    // Если нет задачи на сегодня, выбираем случайную ЛОКАЛЬНУЮ задачу (с описанием)
+    // Codeforces задачи не подходят для Daily Challenge
     if (!dailyTask) {
       const randomTask = await db.GameTask.findOne({
-        where: { isActive: true },
+        where: {
+          isActive: true,
+          // Только локальные задачи (с полным описанием)
+          [Op.or]: [
+            { externalSource: null },
+            { externalSource: 'local' }
+          ]
+        },
         order: db.sequelize.random()
       });
 
@@ -411,34 +419,35 @@ router.post('/sessions/:id/submit', authMiddleware, async (req, res) => {
     let beatAi = null;
     let aiSolved = session.aiSolved;
     let aiSolveTime = session.aiSolveTime;
+    let aiTestsPassed = session.aiTestsPassed;
 
     if (session.mode === 'vs_ai') {
       // Перезагружаем сессию чтобы получить актуальные данные AI
       await session.reload();
       aiSolved = session.aiSolved;
       aiSolveTime = session.aiSolveTime;
+      aiTestsPassed = session.aiTestsPassed;
 
       // Определяем победителя
+      // ВАЖНО: Поражение только если AI РЕШИЛ задачу, а игрок нет или медленнее
       if (solved) {
         // Игрок решил
-        if (!aiSolved) {
-          // AI не решил - игрок победил
-          beatAi = true;
-        } else if (aiSolveTime === 9999) {
-          // AI ещё думает, а игрок уже решил - игрок победил
+        if (!aiSolved || aiSolveTime === null || aiSolveTime === 9999) {
+          // AI не решил или ещё думает - игрок победил
           beatAi = true;
         } else {
           // Оба решили - сравниваем время
-          beatAi = timeSpent < aiSolveTime;
+          beatAi = timeSpent <= aiSolveTime;
         }
       } else {
         // Игрок не решил
-        if (aiSolved) {
-          // AI решил - AI победил
+        if (aiSolved && aiSolveTime !== null && aiSolveTime !== 9999) {
+          // AI решил полностью - AI победил
           beatAi = false;
         } else {
-          // Оба не решили - ничья (считается как проигрыш игрока)
-          beatAi = false;
+          // AI тоже не решил или ещё думает - результат не определён (null)
+          // Не засчитываем ни победу, ни поражение
+          beatAi = null;
         }
       }
     }
@@ -479,11 +488,12 @@ router.post('/sessions/:id/submit', authMiddleware, async (req, res) => {
     }
 
     // VS AI рейтинг: победа/поражение
-    if (session.mode === 'vs_ai') {
+    // Рейтинг меняется ТОЛЬКО если результат определён (beatAi !== null)
+    if (session.mode === 'vs_ai' && beatAi !== null) {
       const aiDifficultyMultiplier = { easy: 1, medium: 2, hard: 3 };
       const multiplier = aiDifficultyMultiplier[session.aiDifficulty] || 1;
 
-      if (solved && beatAi) {
+      if (beatAi === true) {
         // Победа над AI: +15-45 рейтинга в зависимости от сложности AI
         const ratingGain = 15 * multiplier;
         await playerRating.increment('rating', { by: ratingGain });
@@ -494,8 +504,8 @@ router.post('/sessions/:id/submit', authMiddleware, async (req, res) => {
         await playerRating.update({ streak: newStreak });
 
         pointsEarned += ratingGain; // Добавляем бонус к очкам
-      } else {
-        // Проигрыш AI (не решил или решил медленнее): -10-30 рейтинга
+      } else if (beatAi === false) {
+        // Проигрыш AI (AI решил, а игрок нет или медленнее): -10-30 рейтинга
         const ratingLoss = 10 * multiplier;
         const newRating = Math.max(0, playerRating.rating - ratingLoss);
         await playerRating.update({ rating: newRating });

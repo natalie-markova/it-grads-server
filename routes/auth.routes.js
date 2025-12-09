@@ -4,6 +4,8 @@ const jwt = require('jsonwebtoken');
 const generate = require('../utils/generateToken');
 const { User } = require('../db/models');
 const verifyToken = require('../middleware/verifyToken');
+const crypto = require('crypto');
+const emailService = require('../services/email.service');
 
 const router = express.Router();
 
@@ -35,6 +37,24 @@ router.post('/register', async (req, res) => {
       role
     });
 
+    // Генерация verification token
+    const verificationToken = crypto.randomBytes(32).toString('hex');
+    const verificationExpires = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 часа
+
+    // Сохранение токена в БД
+    user.emailVerificationToken = verificationToken;
+    user.emailVerificationExpires = verificationExpires;
+    user.emailVerified = false;
+    await user.save();
+
+    // Отправка email
+    try {
+      await emailService.sendVerificationEmail(user.email, user.username, verificationToken);
+    } catch (emailError) {
+      console.error('Failed to send verification email:', emailError);
+      // Продолжаем регистрацию даже если email не отправился
+    }
+
     const { accessToken, refreshToken } = generate(user.id);
 
     res
@@ -52,9 +72,11 @@ router.post('/register', async (req, res) => {
           id: user.id,
           username: user.username,
           email: user.email,
-          role: user.role
+          role: user.role,
+          emailVerified: user.emailVerified
         }
       });
+      
   } catch (e) {
     console.error('register:', e);
     res.status(500).json({ error: req.t('auth.registrationError') });
@@ -94,7 +116,8 @@ router.post('/login', async (req, res) => {
           id: user.id,
           username: user.username,
           email: user.email,
-          role: user.role
+          role: user.role,
+          emailVerified: user.emailVerified
         }
       });
   } catch (e) {
@@ -114,7 +137,7 @@ const refreshHandler = async (req, res) => {
     const { accessToken, refreshToken: newRefresh } = generate(userId);
 
     const user = await User.findByPk(userId, {
-      attributes: ['id', 'username', 'email', 'role']
+      attributes: ['id', 'username', 'email', 'role', 'emailVerified']
     });
 
     if (!user) {
@@ -135,7 +158,8 @@ const refreshHandler = async (req, res) => {
           id: user.id,
           username: user.username,
           email: user.email,
-          role: user.role
+          role: user.role,
+          emailVerified: user.emailVerified
         }
       });
   } catch (e) {
@@ -190,6 +214,33 @@ router.post('/registration', async (req, res) => {
       role
     });
 
+    // Генерация verification token
+    const verificationToken = crypto.randomBytes(32).toString('hex');
+    const verificationExpires = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 часа
+
+    // Сохранение токена в БД
+    user.emailVerificationToken = verificationToken;
+    user.emailVerificationExpires = verificationExpires;
+    user.emailVerified = false;
+    await user.save();
+
+    // Отправка email
+    try {
+      await emailService.sendVerificationEmail(user.email, user.username, verificationToken);
+    } catch (emailError) {
+      console.error('Failed to send verification email:', emailError);
+      // Продолжаем регистрацию даже если email не отправился
+    }
+
+    // DEV: Логирование verification URL для тестирования
+    if (process.env.NODE_ENV !== 'production') {
+      const verificationUrl = `${process.env.CLIENT_URL}/verify-email/${verificationToken}`;
+      console.log('\n========================================');
+      console.log('VERIFICATION URL (for testing):');
+      console.log(verificationUrl);
+      console.log('========================================\n');
+    }
+
     const { accessToken, refreshToken } = generate(user.id);
 
     res
@@ -206,7 +257,8 @@ router.post('/registration', async (req, res) => {
           id: user.id,
           username: user.username,
           email: user.email,
-          role: user.role
+          role: user.role,
+          emailVerified: user.emailVerified
         }
       });
   } catch (e) {
@@ -248,6 +300,87 @@ router.put('/change-password', verifyToken, async (req, res) => {
   } catch (e) {
     console.error('change-password:', e);
     res.status(500).json({ error: req.t('auth.passwordChangeError') });
+  }
+});
+
+// GET /api/auth/verify-email/:token - Верификация email по токену
+router.get('/verify-email/:token', async (req, res) => {
+  try {
+    const { token } = req.params;
+
+    const user = await User.findOne({
+      where: {
+        emailVerificationToken: token
+      }
+    });
+
+    if (!user) {
+      return res.status(404).json({ error: 'Токен верификации не найден или уже использован' });
+    }
+
+    // Проверка срока действия токена
+    if (new Date() > user.emailVerificationExpires) {
+      return res.status(400).json({ error: 'Срок действия токена истёк. Запросите новое письмо.' });
+    }
+
+    // Верификация email
+    user.emailVerified = true;
+    user.emailVerificationToken = null;
+    user.emailVerificationExpires = null;
+    await user.save();
+
+    // Отправка welcome email
+    try {
+      await emailService.sendWelcomeEmail(user.email, user.username);
+    } catch (emailError) {
+      console.error('Failed to send welcome email:', emailError);
+      // Не критично, продолжаем
+    }
+
+    res.json({ 
+      message: 'Email успешно подтверждён!',
+      user: {
+        id: user.id,
+        username: user.username,
+        email: user.email,
+        role: user.role,
+        emailVerified: user.emailVerified
+      }
+    });
+  } catch (e) {
+    console.error('verify-email:', e);
+    res.status(500).json({ error: 'Ошибка при верификации email' });
+  }
+});
+
+// POST /api/auth/resend-verification - Переотправка письма с верификацией
+router.post('/resend-verification', verifyToken, async (req, res) => {
+  try {
+    const user = await User.findByPk(req.user.id);
+
+    if (!user) {
+      return res.status(404).json({ error: 'Пользователь не найден' });
+    }
+
+    if (user.emailVerified) {
+      return res.status(400).json({ error: 'Email уже подтверждён' });
+    }
+
+    // Генерация нового токена
+    const verificationToken = crypto.randomBytes(32).toString('hex');
+    const verificationExpires = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 часа
+
+    user.emailVerificationToken = verificationToken;
+    user.emailVerificationExpires = verificationExpires;
+    await user.save();
+
+    // Отправка email
+    await emailService.sendVerificationEmail(user.email, user.username, verificationToken);
+
+    res.json({ message: 'Письмо с подтверждением отправлено повторно' });
+  } catch (e) {
+    console.error('resend-verification:', e);
+    res.status(500).json({ error: 'Ошибка при отправке письма' });
   }
 });
 

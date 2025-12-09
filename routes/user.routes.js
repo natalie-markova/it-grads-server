@@ -155,13 +155,38 @@ router.put('/profile', authMiddleware, async (req, res) => {
     const user = await User.findByPk(req.userId);
     if (!user) return res.status(404).json({ message: 'User not found' });
 
-    await user.update(req.body);
+    // Создаём объект для обновления, исключая пустые photo/avatar
+    // чтобы не затирать существующие фото
+    const updateData = { ...req.body };
+
+    // Сохраняем существующий avatar если новый не предоставлен или пустой
+    if (!updateData.avatar || updateData.avatar.trim() === '') {
+      // Если существующий avatar есть - не затираем его
+      if (user.avatar) {
+        delete updateData.avatar;
+      }
+    }
+
+    // Сохраняем существующее photo если новое не предоставлено или пустое
+    if (!updateData.photo || updateData.photo.trim() === '') {
+      // Если существующее photo есть - не затираем его
+      if (user.photo) {
+        delete updateData.photo;
+      }
+    }
+
+    console.log('[Profile Update] User:', user.id, 'Current avatar:', user.avatar, 'Current photo:', user.photo);
+    console.log('[Profile Update] Incoming avatar:', req.body.avatar, 'Incoming photo:', req.body.photo);
+    console.log('[Profile Update] Final update data avatar:', updateData.avatar, 'photo:', updateData.photo);
+
+    await user.update(updateData);
 
     // Инвалидируем кэш профиля при обновлении (роут /api/user, не /api/users)
     await invalidateCache(`cache:/api/user/*`);
 
     res.json(await getUserProfile(req.userId));
   } catch (e) {
+    console.error('Profile update error:', e);
     res.status(500).json({ message: 'Error updating profile' });
   }
 });

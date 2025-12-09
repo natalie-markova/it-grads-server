@@ -80,7 +80,9 @@ class DevelopmentPlanSyncService {
     }
 
     if (updated) {
-      plan.steps = steps;
+      // ВАЖНО: создаём новый массив, чтобы Sequelize обнаружил изменения в JSONB
+      plan.steps = JSON.parse(JSON.stringify(steps));
+      plan.changed('steps', true); // Явно помечаем поле как изменённое
       plan.overallProgress = plan.calculateOverallProgress();
       plan.lastSyncAt = new Date();
 
@@ -124,7 +126,9 @@ class DevelopmentPlanSyncService {
     }
 
     if (updated) {
-      plan.steps = steps;
+      // ВАЖНО: создаём новый массив, чтобы Sequelize обнаружил изменения в JSONB
+      plan.steps = JSON.parse(JSON.stringify(steps));
+      plan.changed('steps', true);
       plan.overallProgress = plan.calculateOverallProgress();
       plan.lastSyncAt = new Date();
 
@@ -142,8 +146,15 @@ class DevelopmentPlanSyncService {
    * @param {object} roadmapProgress - Обновлённый RoadmapProgress
    */
   async onRoadmapProgressChanged(userId, roadmapProgress) {
+    console.log('[DevPlanSync] onRoadmapProgressChanged called:', { userId, roadmapProgress });
+
     const plan = await this.getActivePlan(userId);
-    if (!plan) return null;
+    if (!plan) {
+      console.log('[DevPlanSync] No active plan found for user:', userId);
+      return null;
+    }
+
+    console.log('[DevPlanSync] Found active plan:', plan.id);
 
     let updated = false;
     const steps = plan.steps || [];
@@ -151,7 +162,44 @@ class DevelopmentPlanSyncService {
     for (const step of steps) {
       if (step.type !== 'roadmap') continue;
       if (step.status === 'completed') continue;
-      if (step.roadmapId !== roadmapProgress.roadmapId) continue;
+
+      // Сравниваем по roadmapId или roadmapSlug (для совместимости)
+      let isMatch = false;
+
+      if (step.roadmapId && roadmapProgress.roadmapId) {
+        const stepRoadmapId = parseInt(step.roadmapId, 10);
+        const progressRoadmapId = parseInt(roadmapProgress.roadmapId, 10);
+        isMatch = stepRoadmapId === progressRoadmapId;
+      }
+
+      // Fallback: проверяем по slug
+      if (!isMatch && step.roadmapSlug && roadmapProgress.roadmapSlug) {
+        isMatch = step.roadmapSlug === roadmapProgress.roadmapSlug;
+        // Обновляем roadmapId в шаге для будущих проверок
+        if (isMatch && roadmapProgress.roadmapId) {
+          step.roadmapId = roadmapProgress.roadmapId;
+        }
+      }
+
+      console.log('[DevPlanSync] Comparing roadmap:', {
+        stepRoadmapId: step.roadmapId,
+        stepRoadmapSlug: step.roadmapSlug,
+        progressRoadmapId: roadmapProgress.roadmapId,
+        progressRoadmapSlug: roadmapProgress.roadmapSlug,
+        stepTitle: step.title,
+        isMatch
+      });
+
+      if (!isMatch) continue;
+
+      console.log('[DevPlanSync] Found matching roadmap step:', {
+        stepId: step.id,
+        stepTitle: step.title,
+        currentProgress: step.currentProgress,
+        newProgress: roadmapProgress.progress,
+        requiredProgress: step.requiredProgress,
+        stepStatus: step.status
+      });
 
       // Обновляем текущий прогресс
       step.currentProgress = roadmapProgress.progress || 0;
@@ -162,6 +210,7 @@ class DevelopmentPlanSyncService {
 
       // Проверяем завершение
       if (step.currentProgress >= step.requiredProgress) {
+        console.log('[DevPlanSync] Roadmap step completed! Progress:', step.currentProgress, '>=', step.requiredProgress);
         step.status = 'completed';
         step.completedAt = new Date();
 
@@ -182,12 +231,22 @@ class DevelopmentPlanSyncService {
     }
 
     if (updated) {
-      plan.steps = steps;
+      console.log('[DevPlanSync] Saving updated plan...');
+
+      // Гарантируем разблокировку шагов
+      this.ensureStepsUnlocked(steps);
+
+      // ВАЖНО: создаём новый массив, чтобы Sequelize обнаружил изменения в JSONB
+      plan.steps = JSON.parse(JSON.stringify(steps));
+      plan.changed('steps', true); // Явно помечаем поле как изменённое
       plan.overallProgress = plan.calculateOverallProgress();
       plan.lastSyncAt = new Date();
 
       this.checkPlanCompletion(plan);
       await plan.save();
+      console.log('[DevPlanSync] Plan saved successfully, steps:', plan.steps?.map(s => ({ title: s.title, status: s.status })));
+    } else {
+      console.log('[DevPlanSync] No matching steps found or no updates needed');
     }
 
     return plan;
@@ -291,7 +350,9 @@ class DevelopmentPlanSyncService {
     }
 
     if (updated) {
-      plan.steps = steps;
+      // ВАЖНО: создаём новый массив, чтобы Sequelize обнаружил изменения в JSONB
+      plan.steps = JSON.parse(JSON.stringify(steps));
+      plan.changed('steps', true);
       plan.overallProgress = plan.calculateOverallProgress();
       plan.lastSyncAt = new Date();
 
@@ -343,7 +404,9 @@ class DevelopmentPlanSyncService {
     }
 
     if (updated) {
-      plan.steps = steps;
+      // ВАЖНО: создаём новый массив, чтобы Sequelize обнаружил изменения в JSONB
+      plan.steps = JSON.parse(JSON.stringify(steps));
+      plan.changed('steps', true);
     }
 
     plan.overallProgress = plan.calculateOverallProgress();
@@ -359,8 +422,15 @@ class DevelopmentPlanSyncService {
    * Полная синхронизация плана со всеми источниками
    */
   async fullSync(userId) {
+    console.log('[DevPlanSync] fullSync started for user:', userId);
+
     const plan = await this.getActivePlan(userId);
-    if (!plan) return null;
+    if (!plan) {
+      console.log('[DevPlanSync] No active plan found');
+      return null;
+    }
+
+    console.log('[DevPlanSync] Active plan found:', plan.id);
 
     // Получаем актуальный радар
     const skillScore = await skillAggregator.getOrRecalculate(userId, true);
@@ -373,22 +443,93 @@ class DevelopmentPlanSyncService {
       where: { userId }
     });
 
+    console.log('[DevPlanSync] Found roadmap progress records:', roadmapProgress.length);
+    roadmapProgress.forEach(rp => {
+      console.log('[DevPlanSync] RoadmapProgress:', {
+        roadmapId: rp.roadmapId,
+        progress: rp.progress
+      });
+    });
+
     // Обновляем шаги roadmap
     const steps = plan.steps || [];
+    console.log('[DevPlanSync] Plan has steps:', steps.length);
+    console.log('[DevPlanSync] All steps:', steps.map(s => ({
+      title: s.title,
+      type: s.type,
+      status: s.status,
+      order: s.order,
+      roadmapId: s.roadmapId,
+      roadmapSlug: s.roadmapSlug
+    })));
+
+    let stepsModified = false;
+
     for (const step of steps) {
-      if (step.type === 'roadmap' && step.roadmapId) {
-        const rp = roadmapProgress.find(p => p.roadmapId === step.roadmapId);
+      if (step.type === 'roadmap') {
+        // Ищем по roadmapId или roadmapSlug (для совместимости со старыми планами)
+        let rp = null;
+
+        if (step.roadmapId) {
+          const stepRoadmapId = parseInt(step.roadmapId, 10);
+          rp = roadmapProgress.find(p => parseInt(p.roadmapId, 10) === stepRoadmapId);
+          console.log('[DevPlanSync] Search by roadmapId:', stepRoadmapId, 'found:', !!rp);
+        }
+
+        // Fallback: ищем по slug если не нашли по id
+        if (!rp && step.roadmapSlug) {
+          // Нужно найти roadmap по slug, чтобы получить его id
+          const roadmap = await db.Roadmap.findOne({ where: { slug: step.roadmapSlug } });
+          console.log('[DevPlanSync] Search roadmap by slug:', step.roadmapSlug, 'found roadmap:', roadmap?.id);
+
+          if (roadmap) {
+            rp = roadmapProgress.find(p => parseInt(p.roadmapId, 10) === roadmap.id);
+            console.log('[DevPlanSync] Search progress by roadmap.id:', roadmap.id, 'found progress:', rp?.progress);
+
+            // Обновляем шаг, чтобы в будущем искать по id
+            if (!step.roadmapId) {
+              step.roadmapId = roadmap.id;
+              stepsModified = true;
+            }
+          }
+        }
+
+        console.log('[DevPlanSync] Checking roadmap step:', {
+          stepTitle: step.title,
+          stepRoadmapId: step.roadmapId,
+          stepRoadmapSlug: step.roadmapSlug,
+          foundProgress: rp ? rp.progress : 'not found',
+          requiredProgress: step.requiredProgress,
+          currentStatus: step.status
+        });
+
         if (rp) {
+          const previousProgress = step.currentProgress;
           step.currentProgress = rp.progress || 0;
 
+          if (previousProgress !== step.currentProgress) {
+            stepsModified = true;
+          }
+
+          // Проверяем завершение: progress >= requiredProgress И шаг ещё не completed
           if (rp.progress >= step.requiredProgress && step.status !== 'completed') {
+            console.log('[DevPlanSync] ✓ Marking step as COMPLETED:', step.title, 'progress:', rp.progress, '>=', step.requiredProgress);
             step.status = 'completed';
             step.completedAt = new Date();
+            stepsModified = true;
             this.unlockNextStep(steps, step);
+          } else if (step.status === 'completed') {
+            console.log('[DevPlanSync] Step already completed:', step.title);
+          } else {
+            console.log('[DevPlanSync] Step not ready for completion:', step.title, 'progress:', rp.progress, '<', step.requiredProgress);
           }
+        } else {
+          console.log('[DevPlanSync] No progress record found for step:', step.title);
         }
       }
     }
+
+    console.log('[DevPlanSync] Steps modified during roadmap check:', stepsModified);
 
     // Получаем статистику CodeBattle
     const codebattleData = skillScore.codebattle || {};
@@ -404,14 +545,74 @@ class DevelopmentPlanSyncService {
       }
     }
 
-    plan.steps = steps;
+    // Финальная проверка: разблокируем шаги, которые должны быть разблокированы
+    // (на случай, если они были пропущены из-за багов)
+    this.ensureStepsUnlocked(steps);
+
+    console.log('[DevPlanSync] Steps before save:', steps.map(s => ({
+      title: s.title,
+      status: s.status,
+      order: s.order,
+      currentProgress: s.currentProgress,
+      requiredProgress: s.requiredProgress
+    })));
+
+    // ВАЖНО: создаём новый массив, чтобы Sequelize обнаружил изменения в JSONB
+    plan.steps = JSON.parse(JSON.stringify(steps));
+    plan.changed('steps', true); // Явно помечаем поле как изменённое
     plan.overallProgress = plan.calculateOverallProgress();
     plan.lastSyncAt = new Date();
+
+    console.log('[DevPlanSync] Plan before save - overallProgress:', plan.overallProgress);
 
     this.checkPlanCompletion(plan);
     await plan.save();
 
+    // Проверяем что данные реально сохранились
+    const savedPlan = await this.getActivePlan(userId);
+    console.log('[DevPlanSync] fullSync completed, VERIFIED saved steps:', savedPlan?.steps?.map(s => ({
+      title: s.title,
+      status: s.status
+    })));
+
     return plan;
+  }
+
+  /**
+   * Гарантировать, что шаги разблокированы если все предыдущие завершены
+   */
+  ensureStepsUnlocked(steps) {
+    console.log('[DevPlanSync] ensureStepsUnlocked - checking all steps');
+
+    for (const step of steps) {
+      // Пропускаем уже завершённые или активные шаги
+      if (step.status === 'completed' || step.status === 'in_progress') {
+        continue;
+      }
+
+      // Для locked шагов проверяем, должны ли они быть разблокированы
+      if (step.status === 'locked') {
+        const stepOrder = parseInt(step.order, 10);
+        const previousSteps = steps.filter(s => parseInt(s.order, 10) < stepOrder);
+
+        // Если все предыдущие шаги завершены - разблокируем
+        const allPreviousCompleted = previousSteps.every(s => s.status === 'completed');
+
+        if (allPreviousCompleted) {
+          console.log('[DevPlanSync] Unlocking step that should be unlocked:', {
+            stepTitle: step.title,
+            stepOrder: stepOrder,
+            previousStepsCount: previousSteps.length
+          });
+
+          step.status = 'in_progress';
+          step.unlockedAt = new Date();
+
+          // Разблокируем только первый заблокированный шаг
+          break;
+        }
+      }
+    }
   }
 
   /**
@@ -459,20 +660,46 @@ class DevelopmentPlanSyncService {
    * Разблокировать следующий шаг после завершения текущего
    */
   unlockNextStep(steps, completedStep) {
-    // Находим следующий locked шаг
+    const completedOrder = parseInt(completedStep.order, 10);
+
+    console.log('[DevPlanSync] unlockNextStep called for:', {
+      completedStepTitle: completedStep.title,
+      completedStepOrder: completedOrder,
+      completedStepStatus: completedStep.status
+    });
+
+    // Находим следующий locked шаг (сравниваем как числа)
     const nextStep = steps.find(s =>
-      s.order > completedStep.order && s.status === 'locked'
+      parseInt(s.order, 10) > completedOrder && s.status === 'locked'
     );
 
     if (nextStep) {
-      // Проверяем, что все предыдущие шаги завершены
-      const previousSteps = steps.filter(s => s.order < nextStep.order);
+      const nextOrder = parseInt(nextStep.order, 10);
+
+      console.log('[DevPlanSync] Found next locked step:', {
+        nextStepTitle: nextStep.title,
+        nextStepOrder: nextOrder
+      });
+
+      // Проверяем, что все предыдущие шаги завершены (сравниваем как числа)
+      const previousSteps = steps.filter(s => parseInt(s.order, 10) < nextOrder);
       const allCompleted = previousSteps.every(s => s.status === 'completed');
+
+      console.log('[DevPlanSync] Previous steps check:', {
+        previousStepsCount: previousSteps.length,
+        allCompleted,
+        previousStatuses: previousSteps.map(s => ({ title: s.title, status: s.status, order: s.order }))
+      });
 
       if (allCompleted) {
         nextStep.status = 'in_progress';
         nextStep.unlockedAt = new Date();
+        console.log('[DevPlanSync] Next step unlocked:', nextStep.title);
+      } else {
+        console.log('[DevPlanSync] Cannot unlock - not all previous steps completed');
       }
+    } else {
+      console.log('[DevPlanSync] No next locked step found');
     }
   }
 
@@ -557,6 +784,16 @@ class DevelopmentPlanSyncService {
     const currentStep = plan.getCurrentStep();
     const nextStep = plan.getNextLockedStep();
     const stepsStats = plan.getStepsStats();
+
+    console.log('[DevPlanSync] getPlanStatus:', {
+      userId,
+      planId: plan.id,
+      currentStepTitle: currentStep?.title,
+      currentStepStatus: currentStep?.status,
+      nextStepTitle: nextStep?.title,
+      stepsStats,
+      allSteps: plan.steps?.map(s => ({ title: s.title, status: s.status, order: s.order }))
+    });
 
     // Получаем актуальный радар для сравнения
     const skillScore = await skillAggregator.getOrRecalculate(userId);
