@@ -1,6 +1,15 @@
-const sgMail = require('@sendgrid/mail');
+const nodemailer = require('nodemailer');
 
-sgMail.setApiKey(process.env.SENDGRID_API_KEY);
+// Создаем транспорт для Yandex SMTP
+const transporter = nodemailer.createTransport({
+  host: process.env.SMTP_HOST,
+  port: parseInt(process.env.SMTP_PORT),
+  secure: process.env.SMTP_SECURE === 'true',
+  auth: {
+    user: process.env.SMTP_USER,
+    pass: process.env.SMTP_PASS,
+  },
+});
 
 class EmailService {
   /**
@@ -8,26 +17,26 @@ class EmailService {
    */
   async sendVerificationEmail(email, username, verificationToken) {
     const verificationUrl = `${process.env.CLIENT_URL}/verify-email/${verificationToken}`;
-    
-    const msg = {
-      to: email,
+
+    const mailOptions = {
       from: {
-        email: process.env.SENDGRID_FROM_EMAIL,
-        name: process.env.SENDGRID_FROM_NAME,
+        name: 'IT-Grads Platform',
+        address: process.env.SMTP_USER,
       },
+      to: email,
       subject: 'Подтвердите ваш email - IT-Grads',
       text: `
         Здравствуйте, ${username}!
-        
+
         Спасибо за регистрацию на платформе IT-Grads.
-        
+
         Для активации аккаунта перейдите по ссылке:
         ${verificationUrl}
-        
+
         Ссылка действительна в течение 24 часов.
-        
+
         Если вы не регистрировались на IT-Grads, просто проигнорируйте это письмо.
-        
+
         С уважением,
         Команда IT-Grads
       `,
@@ -52,20 +61,20 @@ class EmailService {
             </div>
             <div class="content">
               <p>Здравствуйте, <strong>${username}</strong>!</p>
-              
+
               <p>Спасибо за регистрацию на платформе IT-Grads. Мы рады видеть вас в нашем сообществе!</p>
-              
+
               <p>Для активации аккаунта и получения полного доступа ко всем возможностям платформы, пожалуйста, подтвердите ваш email:</p>
-              
+
               <center>
                 <a href="${verificationUrl}" class="button">Подтвердить Email</a>
               </center>
-              
+
               <p style="color: #666; font-size: 14px;">Или скопируйте и вставьте эту ссылку в браузер:<br>
               <a href="${verificationUrl}">${verificationUrl}</a></p>
-              
+
               <p style="color: #e74c3c; font-size: 14px;"><strong>Внимание:</strong> Ссылка действительна в течение 24 часов.</p>
-              
+
               <p>Если вы не регистрировались на IT-Grads, просто проигнорируйте это письмо.</p>
             </div>
             <div class="footer">
@@ -78,14 +87,11 @@ class EmailService {
     };
 
     try {
-      await sgMail.send(msg);
+      await transporter.sendMail(mailOptions);
       console.log(`[OK] Verification email sent to ${email}`);
       return { success: true };
     } catch (error) {
-      console.error('[ERROR] SendGrid Error:', error);
-      if (error.response) {
-        console.error('Error details:', error.response.body);
-      }
+      console.error('[ERROR] Email sending error:', error);
       throw new Error('Failed to send verification email');
     }
   }
@@ -94,26 +100,26 @@ class EmailService {
    * Отправка уведомления об успешной верификации
    */
   async sendWelcomeEmail(email, username) {
-    const msg = {
-      to: email,
+    const mailOptions = {
       from: {
-        email: process.env.SENDGRID_FROM_EMAIL,
-        name: process.env.SENDGRID_FROM_NAME,
+        name: 'IT-Grads Platform',
+        address: process.env.SMTP_USER,
       },
+      to: email,
       subject: 'Email успешно подтвержден - IT-Grads',
       text: `
         Здравствуйте, ${username}!
-        
+
         Ваш email успешно подтвержден!
-        
+
         Теперь вам доступны все возможности платформы IT-Grads:
         - AI Interview для подготовки к собеседованиям
         - Code Battle Arena для развития навыков
         - Создание резюме и отклики на вакансии
         - И многое другое!
-        
+
         Желаем успехов в поиске работы!
-        
+
         С уважением,
         Команда IT-Grads
       `,
@@ -160,7 +166,7 @@ class EmailService {
                 <strong>Вакансии</strong><br>
                 Поиск и отклик на вакансии от реальных работодателей
               </div>
-              
+
               <p style="margin-top: 30px;">Желаем успехов в развитии карьеры!</p>
             </div>
             <div class="footer">
@@ -173,11 +179,11 @@ class EmailService {
     };
 
     try {
-      await sgMail.send(msg);
+      await transporter.sendMail(mailOptions);
       console.log(`[OK] Welcome email sent to ${email}`);
       return { success: true };
     } catch (error) {
-      console.error('[ERROR] SendGrid Error:', error);
+      console.error('[ERROR] Email sending error:', error);
       // Не бросаем ошибку, т.к. welcome email не критичен
       return { success: false };
     }

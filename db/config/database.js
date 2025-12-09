@@ -6,11 +6,11 @@ const envProductionPath = path.join(__dirname, '../../.env.production');
 const envLocalPath = path.join(__dirname, '../../.env.local');
 
 if (fs.existsSync(envProductionPath)) {
-  require('dotenv').config({ path: envProductionPath });
+  require('dotenv').config({ path: envProductionPath, override: false });
 } else if (fs.existsSync(envLocalPath)) {
-  require('dotenv').config({ path: envLocalPath });
+  require('dotenv').config({ path: envLocalPath, override: false });
 } else {
-  require('dotenv').config();
+  require('dotenv').config({ override: false });
 }
 
 module.exports = {
