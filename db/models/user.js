@@ -25,6 +25,9 @@ module.exports = (sequelize, DataTypes) => {
   User.init({
     username: { type: DataTypes.STRING, allowNull: false },
     email: { type: DataTypes.STRING, allowNull: false, unique: true, validate: { isEmail: true } },
+    emailVerified: { type: DataTypes.BOOLEAN, defaultValue: false, allowNull: false, },
+    emailVerificationToken: { type: DataTypes.STRING, allowNull: true, },
+    emailVerificationExpires: { type: DataTypes.DATE, allowNull: true, },
     password: { type: DataTypes.STRING, allowNull: false },
     role: { type: DataTypes.ENUM('graduate', 'employer'), allowNull: false, defaultValue: 'graduate' },
     phone: { type: DataTypes.STRING },
