@@ -968,8 +968,8 @@ class SkillAggregatorService {
       recommendations.push({
         type: 'action',
         area: 'codebattle',
-        title: 'Решайте задачи в Code Battle',
-        description: 'Решите минимум 10 задач, чтобы улучшить навыки программирования и алгоритмов',
+        titleKey: 'autoRadar.recommendations.codebattle.title',
+        descriptionKey: 'autoRadar.recommendations.codebattle.description',
         priority: 'high',
         icon: '🎮'
       });
@@ -979,8 +979,8 @@ class SkillAggregatorService {
       recommendations.push({
         type: 'action',
         area: 'resume',
-        title: 'Заполните резюме',
-        description: 'Добавьте описание, опыт работы и портфолио для более точной оценки навыков',
+        titleKey: 'autoRadar.recommendations.resume.title',
+        descriptionKey: 'autoRadar.recommendations.resume.description',
         priority: 'high',
         icon: '📄'
       });
@@ -990,8 +990,8 @@ class SkillAggregatorService {
       recommendations.push({
         type: 'action',
         area: 'interview',
-        title: 'Пройдите AI интервью',
-        description: 'AI интервью поможет оценить ваши технические знания и коммуникацию',
+        titleKey: 'autoRadar.recommendations.interview.title',
+        descriptionKey: 'autoRadar.recommendations.interview.description',
         priority: 'medium',
         icon: '🤖'
       });
@@ -1001,8 +1001,8 @@ class SkillAggregatorService {
       recommendations.push({
         type: 'action',
         area: 'roadmap',
-        title: 'Начните карту специальности',
-        description: 'Выберите карту развития и отслеживайте свой прогресс',
+        titleKey: 'autoRadar.recommendations.roadmap.title',
+        descriptionKey: 'autoRadar.recommendations.roadmap.description',
         priority: 'medium',
         icon: '🗺️'
       });
@@ -1012,45 +1012,11 @@ class SkillAggregatorService {
   }
 
   getRecommendationForArea(area, value, breakdown, sources) {
-    const areaNames = {
-      programming: 'Программирование',
-      algorithms: 'Алгоритмы',
-      databases: 'Базы данных',
-      cloud: 'Облачные технологии',
-      devops: 'DevOps',
-      testing: 'Тестирование',
-      networking: 'Сети',
-      security: 'Безопасность',
-      ai_ml: 'ML & AI',
-      data_science: 'Data Science',
-      management: 'Управление проектами',
-      ui_ux: 'UI/UX',
-      mobile: 'Мобильная разработка',
-      communication: 'Коммуникация'
-    };
-
-    const actions = {
-      programming: 'Решайте больше задач в Code Battle и добавьте технологии в резюме',
-      algorithms: 'Решайте алгоритмические задачи средней и высокой сложности',
-      databases: 'Изучите SQL и NoSQL базы данных, добавьте их в резюме',
-      cloud: 'Начните изучение AWS/GCP/Azure через карты развития',
-      devops: 'Освойте Docker и CI/CD через карты развития',
-      testing: 'Решайте задачи без подсказок и с первой попытки',
-      networking: 'Изучите основы сетей через карты развития',
-      security: 'Пройдите курс по безопасности веб-приложений',
-      ai_ml: 'Начните изучение Machine Learning через карты развития',
-      data_science: 'Освойте Python для анализа данных',
-      management: 'Изучите Agile/Scrum методологии',
-      ui_ux: 'Освойте Figma и основы дизайна',
-      mobile: 'Начните изучение React Native или Flutter',
-      communication: 'Пройдите аудио интервью для развития soft skills'
-    };
-
     return {
       type: 'improvement',
       area,
-      title: `Улучшите ${areaNames[area] || area}`,
-      description: actions[area] || 'Продолжайте развивать этот навык',
+      titleKey: `autoRadar.recommendations.improve.${area}.title`,
+      descriptionKey: `autoRadar.recommendations.improve.${area}.description`,
       currentValue: value,
       priority: value < 20 ? 'high' : 'medium',
       icon: '📈'

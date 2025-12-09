@@ -98,6 +98,7 @@ app.use(
 
 app.use("/api/users", authRoutes);
 app.use("/api/tokens", authRoutes);
+app.use("/api/auth", authRoutes);
 app.use("/api/user", userRoutes);
 
 app.use("/auth", authRoutes);
