@@ -40,6 +40,7 @@ const chatRoutes = require("./routes/chat.routes");
 const codeBattleRoutes = require("./routes/codebattle.routes");
 const interviewTrackerRoutes = require("./routes/interviewTracker.routes");
 const developmentPlanRoutes = require("./routes/developmentPlan.routes");
+const assistantRoutes = require("./routes/assistant.routes");
 const codeBattleSocket = require("./services/codeBattleSocket.service");
 const scheduler = require("./services/scheduler.service");
 
@@ -116,6 +117,7 @@ app.use("/api/chats", chatRoutes);
 app.use("/api/codebattle", codeBattleRoutes);
 app.use("/api/interview-tracker", interviewTrackerRoutes);
 app.use("/api/development-plan", developmentPlanRoutes);
+app.use("/api/assistant", assistantRoutes);
 
 (async () => {
   try {

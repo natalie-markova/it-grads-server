@@ -26,33 +26,107 @@ class CodeExecutorService {
     };
 
     // Шаблоны для обёртки кода (для тестирования)
+    // Автоматически определяем имя функции из кода пользователя
+    // Поддерживаем как функции с одним параметром (input), так и с несколькими (nums, target)
     this.wrapperTemplates = {
-      javascript: (code, input) => `
+      javascript: (code, input) => {
+        // Извлекаем имя первой функции и её параметры из кода
+        const funcMatch = code.match(/function\s+(\w+)\s*\(([^)]*)\)/);
+        const funcName = funcMatch ? funcMatch[1] : 'solution';
+        const params = funcMatch && funcMatch[2] ? funcMatch[2].split(',').map(p => p.trim()).filter(p => p) : [];
+
+        // Если функция принимает несколько параметров и input - объект, распаковываем
+        let callCode;
+        if (params.length > 1 && typeof input === 'object' && input !== null && !Array.isArray(input)) {
+          // Передаём значения объекта как отдельные аргументы ПО ПОРЯДКУ КЛЮЧЕЙ объекта
+          const inputKeys = Object.keys(input);
+          const args = inputKeys.map(key => `testInput["${key}"]`).join(', ');
+          callCode = `${funcName}(${args})`;
+        } else {
+          callCode = `${funcName}(testInput)`;
+        }
+
+        return `
 ${code}
 
 // Test runner
-const input = ${JSON.stringify(input)};
-const result = solution(input);
-console.log(JSON.stringify(result));
-`,
-      typescript: (code, input) => `
+const testInput = ${JSON.stringify(input)};
+const result = ${callCode};
+// Корректный вывод для сравнения
+if (result === null) {
+  console.log('null');
+} else if (result === undefined) {
+  console.log('undefined');
+} else if (typeof result === 'boolean') {
+  console.log(result ? 'true' : 'false');
+} else {
+  console.log(JSON.stringify(result));
+}
+`;
+      },
+      typescript: (code, input) => {
+        const funcMatch = code.match(/function\s+(\w+)\s*\(([^)]*)\)/);
+        const funcName = funcMatch ? funcMatch[1] : 'solution';
+        const params = funcMatch && funcMatch[2] ? funcMatch[2].split(',').map(p => p.trim()).filter(p => p) : [];
+
+        let callCode;
+        if (params.length > 1 && typeof input === 'object' && input !== null && !Array.isArray(input)) {
+          const inputKeys = Object.keys(input);
+          const args = inputKeys.map(key => `testInput["${key}"]`).join(', ');
+          callCode = `${funcName}(${args})`;
+        } else {
+          callCode = `${funcName}(testInput)`;
+        }
+
+        return `
 ${code}
 
 // Test runner
-const input = ${JSON.stringify(input)};
-const result = solution(input);
-console.log(JSON.stringify(result));
-`,
-      python: (code, input) => `
+const testInput = ${JSON.stringify(input)};
+const result = ${callCode};
+if (result === null) {
+  console.log('null');
+} else if (result === undefined) {
+  console.log('undefined');
+} else if (typeof result === 'boolean') {
+  console.log(result ? 'true' : 'false');
+} else {
+  console.log(JSON.stringify(result));
+}
+`;
+      },
+      python: (code, input) => {
+        // Извлекаем имя первой функции def и параметры из Python кода
+        const funcMatch = code.match(/def\s+(\w+)\s*\(([^)]*)\)/);
+        const funcName = funcMatch ? funcMatch[1] : 'solution';
+        const params = funcMatch && funcMatch[2] ? funcMatch[2].split(',').map(p => p.trim()).filter(p => p) : [];
+
+        let callCode;
+        if (params.length > 1 && typeof input === 'object' && input !== null && !Array.isArray(input)) {
+          // Передаём значения объекта как позиционные аргументы по порядку ключей
+          const inputKeys = Object.keys(input);
+          const args = inputKeys.map(key => `test_input["${key}"]`).join(', ');
+          callCode = `${funcName}(${args})`;
+        } else {
+          callCode = `${funcName}(test_input)`;
+        }
+
+        return `
 import json
 
 ${code}
 
 # Test runner
-input_data = json.loads('${JSON.stringify(input)}')
-result = solution(input_data)
-print(json.dumps(result))
-`,
+test_input = json.loads('''${JSON.stringify(input)}''')
+result = ${callCode}
+if result is None:
+    print('null')
+elif isinstance(result, bool):
+    print('true' if result else 'false')
+else:
+    print(json.dumps(result, ensure_ascii=False))
+`;
+      },
       java: (code, input) => `
 import com.google.gson.Gson;
 
@@ -325,13 +399,21 @@ class Program {
       }
     }
 
+    // Безопасный расчёт средних значений (защита от NaN и деления на 0)
+    const avgTime = results.length > 0
+      ? results.reduce((sum, r) => sum + (r.time || 0), 0) / results.length
+      : 0;
+    const avgMemory = results.length > 0
+      ? results.reduce((sum, r) => sum + (r.memory || 0), 0) / results.length
+      : 0;
+
     return {
       passed,
       total: testCases.length,
       allPassed: passed === testCases.length,
       results,
-      avgTime: results.reduce((sum, r) => sum + r.time, 0) / results.length,
-      avgMemory: results.reduce((sum, r) => sum + r.memory, 0) / results.length
+      avgTime: avgTime || 0,
+      avgMemory: avgMemory || 0
     };
   }
 
@@ -350,20 +432,36 @@ class Program {
    * Сравнение выходных данных (с учётом разных форматов)
    */
   compareOutputs(actual, expected) {
-    // Убираем пробелы и переносы
-    const normalizeString = (s) => s.replace(/\s+/g, ' ').trim().toLowerCase();
+    // Нормализуем строки для сравнения
+    const normalizeForComparison = (s) => {
+      if (typeof s !== 'string') s = String(s);
+      return s.trim();
+    };
 
-    if (normalizeString(actual) === normalizeString(expected)) {
+    const normalizedActual = normalizeForComparison(actual);
+    const normalizedExpected = normalizeForComparison(expected);
+
+    // Прямое сравнение
+    if (normalizedActual === normalizedExpected) {
+      return true;
+    }
+
+    // Сравнение без учёта регистра для boolean
+    if (normalizedActual.toLowerCase() === normalizedExpected.toLowerCase()) {
       return true;
     }
 
     // Пробуем сравнить как JSON
     try {
-      const actualJson = JSON.parse(actual);
-      const expectedJson = JSON.parse(expected);
+      const actualJson = JSON.parse(normalizedActual);
+      const expectedJson = JSON.parse(normalizedExpected);
+
+      // Глубокое сравнение JSON
       return JSON.stringify(actualJson) === JSON.stringify(expectedJson);
     } catch {
-      return false;
+      // Не JSON - сравниваем как строки с нормализацией пробелов
+      const normalizeSpaces = (s) => s.replace(/\s+/g, ' ').trim();
+      return normalizeSpaces(normalizedActual) === normalizeSpaces(normalizedExpected);
     }
   }
 

@@ -176,22 +176,37 @@ router.post('/:slug/progress', verifyToken, async (req, res) => {
     // Триггерим пересчёт радара навыков (асинхронно)
     skillAggregator.triggerRecalculation(req.user.id, 'roadmap');
 
-    // Синхронизируем план развития (асинхронно)
-    setImmediate(async () => {
-      try {
-        await developmentPlanSync.onRoadmapProgressChanged(req.user.id, {
-          roadmapId: roadmap.id,
-          progress: progressPercent,
-          startedAt: progress.startedAt
+    // Синхронизируем план развития (синхронно, чтобы клиент сразу видел обновления)
+    let planUpdated = false;
+    try {
+      console.log('[Roadmap] Syncing development plan...', {
+        userId: req.user.id,
+        roadmapId: roadmap.id,
+        progress: progressPercent
+      });
+
+      const updatedPlan = await developmentPlanSync.onRoadmapProgressChanged(req.user.id, {
+        roadmapId: roadmap.id,
+        roadmapSlug: roadmap.slug,
+        progress: progressPercent,
+        startedAt: progress.startedAt
+      });
+
+      if (updatedPlan) {
+        console.log('[Roadmap] Plan synced successfully:', {
+          planId: updatedPlan.id,
+          overallProgress: updatedPlan.overallProgress
         });
-      } catch (err) {
-        console.error('Error syncing development plan:', err);
+        planUpdated = true;
       }
-    });
+    } catch (err) {
+      console.error('Error syncing development plan:', err);
+    }
 
     res.json({
       message: req.t('roadmap.progressSaved'),
-      progress: progress
+      progress: progress,
+      planUpdated
     });
   } catch (error) {
     console.error('Error saving progress:', error);
