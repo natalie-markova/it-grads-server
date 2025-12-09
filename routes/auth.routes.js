@@ -1,6 +1,7 @@
 const express = require('express');
 const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
+const { OAuth2Client } = require('google-auth-library');
 const generate = require('../utils/generateToken');
 const { User } = require('../db/models');
 const verifyToken = require('../middleware/verifyToken');
@@ -8,6 +9,9 @@ const crypto = require('crypto');
 const emailService = require('../services/email.service');
 
 const router = express.Router();
+
+// Google OAuth client
+const googleClient = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
 
 const validRoles = ['graduate', 'employer'];
 
@@ -381,6 +385,90 @@ router.post('/resend-verification', verifyToken, async (req, res) => {
   } catch (e) {
     console.error('resend-verification:', e);
     res.status(500).json({ error: 'Ошибка при отправке письма' });
+  }
+});
+
+// POST /api/users/google - Авторизация через Google
+router.post('/google', async (req, res) => {
+  try {
+    const { credential, role } = req.body;
+
+    if (!credential) {
+      return res.status(400).json({ error: 'Google credential is required' });
+    }
+
+    // Верификация токена Google
+    const ticket = await googleClient.verifyIdToken({
+      idToken: credential,
+      audience: process.env.GOOGLE_CLIENT_ID
+    });
+
+    const payload = ticket.getPayload();
+    const { sub: googleId, email, name, picture } = payload;
+
+    // Поиск существующего пользователя по googleId или email
+    let user = await User.findOne({ where: { googleId } });
+
+    if (!user) {
+      // Проверяем, есть ли пользователь с таким email
+      user = await User.findOne({ where: { email } });
+
+      if (user) {
+        // Связываем существующий аккаунт с Google
+        user.googleId = googleId;
+        if (!user.avatar && picture) {
+          user.avatar = picture;
+        }
+        await user.save();
+      } else {
+        // Создаём нового пользователя
+        const userRole = role && validRoles.includes(role) ? role : 'graduate';
+
+        user = await User.create({
+          googleId,
+          email,
+          username: name || email.split('@')[0],
+          avatar: picture,
+          role: userRole,
+          emailVerified: true, // Google уже верифицировал email
+          password: null // Пароль не нужен для Google OAuth
+        });
+
+        // Отправка welcome email
+        try {
+          await emailService.sendWelcomeEmail(user.email, user.username);
+        } catch (emailError) {
+          console.error('Failed to send welcome email:', emailError);
+        }
+      }
+    }
+
+    // Генерация JWT токенов
+    const { accessToken, refreshToken } = generate(user.id);
+
+    res
+      .cookie('refreshToken', refreshToken, {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === 'production',
+        sameSite: 'lax',
+        path: '/',
+        maxAge: 7 * 24 * 60 * 60 * 1000
+      })
+      .json({
+        accessToken,
+        user: {
+          id: user.id,
+          username: user.username,
+          email: user.email,
+          role: user.role,
+          avatar: user.avatar,
+          emailVerified: user.emailVerified
+        }
+      });
+
+  } catch (e) {
+    console.error('google auth:', e);
+    res.status(500).json({ error: 'Ошибка авторизации через Google' });
   }
 });
 
