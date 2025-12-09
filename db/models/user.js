@@ -29,6 +29,8 @@ module.exports = (sequelize, DataTypes) => {
     emailVerificationToken: { type: DataTypes.STRING, allowNull: true, },
     emailVerificationExpires: { type: DataTypes.DATE, allowNull: true, },
     password: { type: DataTypes.STRING, allowNull: false },
+    passwordResetToken: { type: DataTypes.STRING, allowNull: true },
+    passwordResetExpires: { type: DataTypes.DATE, allowNull: true },
     role: { type: DataTypes.ENUM('graduate', 'employer'), allowNull: false, defaultValue: 'graduate' },
     phone: { type: DataTypes.STRING },
     avatar: { type: DataTypes.STRING },

@@ -1,6 +1,7 @@
 const express = require('express');
 const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
+const { Op } = require('sequelize');
 const generate = require('../utils/generateToken');
 const { User } = require('../db/models');
 const verifyToken = require('../middleware/verifyToken');
@@ -381,6 +382,92 @@ router.post('/resend-verification', verifyToken, async (req, res) => {
   } catch (e) {
     console.error('resend-verification:', e);
     res.status(500).json({ error: 'Ошибка при отправке письма' });
+  }
+});
+
+// POST /api/auth/forgot-password - Запрос на восстановление пароля
+router.post('/forgot-password', async (req, res) => {
+  try {
+    const { email } = req.body;
+
+    if (!email) {
+      return res.status(400).json({ error: 'Email обязателен' });
+    }
+
+    const user = await User.findOne({ where: { email } });
+
+    if (!user) {
+      // Не раскрываем, существует ли пользователь
+      return res.json({ message: 'Если email существует, письмо с инструкциями отправлено' });
+    }
+
+    // Генерация токена сброса пароля (1 час действия)
+    const resetToken = crypto.randomBytes(32).toString('hex');
+    const resetExpires = new Date(Date.now() + 60 * 60 * 1000); // 1 час
+
+    user.passwordResetToken = resetToken;
+    user.passwordResetExpires = resetExpires;
+    await user.save();
+
+    // Отправка email
+    try {
+      await emailService.sendPasswordResetEmail(user.email, user.username, resetToken);
+    } catch (emailError) {
+      console.error('Failed to send password reset email:', emailError);
+      return res.status(500).json({ error: 'Не удалось отправить письмо' });
+    }
+
+    // Dev-режим: логируем ссылку для тестирования
+    if (process.env.NODE_ENV !== 'production') {
+      const resetUrl = `${process.env.CLIENT_URL}/reset-password/${resetToken}`;
+      console.log('\n========================================');
+      console.log('PASSWORD RESET URL (for testing):');
+      console.log(resetUrl);
+      console.log('========================================\n');
+    }
+
+    res.json({ message: 'Если email существует, письмо с инструкциями отправлено' });
+  } catch (e) {
+    console.error('forgot-password:', e);
+    res.status(500).json({ error: 'Ошибка при восстановлении пароля' });
+  }
+});
+
+// POST /api/auth/reset-password/:token - Установка нового пароля
+router.post('/reset-password/:token', async (req, res) => {
+  try {
+    const { token } = req.params;
+    const { password } = req.body;
+
+    if (!password || password.length < 6) {
+      return res.status(400).json({ error: 'Пароль должен содержать минимум 6 символов' });
+    }
+
+    const user = await User.findOne({
+      where: {
+        passwordResetToken: token,
+        passwordResetExpires: { [Op.gt]: new Date() }
+      }
+    });
+
+    if (!user) {
+      return res.status(400).json({ error: 'Недействительная или истёкшая ссылка для сброса пароля' });
+    }
+
+    // Хешируем новый пароль
+    const hashedPassword = await bcrypt.hash(password, 10);
+    user.password = hashedPassword;
+
+    // Очищаем токен сброса
+    user.passwordResetToken = null;
+    user.passwordResetExpires = null;
+
+    await user.save();
+
+    res.json({ message: 'Пароль успешно изменён. Теперь вы можете войти с новым паролем.' });
+  } catch (e) {
+    console.error('reset-password:', e);
+    res.status(500).json({ error: 'Ошибка при сбросе пароля' });
   }
 });
 
