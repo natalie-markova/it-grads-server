@@ -5,6 +5,10 @@
   "scripts": {
     "start": "nodemon server.js",
     "start:prod": "NODE_ENV=production node server.js",
+    "redis:start": "docker-compose up -d redis",
+    "redis:stop": "docker-compose down",
+    "redis:logs": "docker-compose logs -f redis",
+    "dev": "docker-compose up -d redis && nodemon server.js",
     "db:sync": "node db/sync-database.js",
     "db:migrate": "sequelize-cli db:migrate",
     "db:migrate:undo": "sequelize-cli db:migrate:undo",
