@@ -83,7 +83,7 @@ router.get('/vacancy/:vacancyId', verifyToken, async (req, res) => {
         {
           model: User,
           as: 'user',
-          attributes: ['id', 'username', 'email', 'phone', 'avatar'],
+          attributes: ['id', 'username', 'email', 'phone', 'avatar', 'photo'],
           include: [{
             model: Resume,
             as: 'resumes',
@@ -95,7 +95,16 @@ router.get('/vacancy/:vacancyId', verifyToken, async (req, res) => {
       order: [['createdAt', 'DESC']]
     });
 
-    res.json(applications);
+    // Нормализуем avatar для всех пользователей
+    const normalizedApplications = applications.map(app => {
+      const appJson = app.toJSON();
+      if (appJson.user) {
+        appJson.user.avatar = appJson.user.avatar || appJson.user.photo;
+      }
+      return appJson;
+    });
+
+    res.json(normalizedApplications);
   } catch (error) {
     console.error('Error fetching vacancy applications:', error);
     res.status(500).json({ error: req.t('application.fetchError') });
@@ -149,7 +158,7 @@ router.get('/employer/all', verifyToken, async (req, res) => {
         {
           model: User,
           as: 'user',
-          attributes: ['id', 'username', 'email', 'phone', 'avatar'],
+          attributes: ['id', 'username', 'email', 'phone', 'avatar', 'photo'],
           include: [{
             model: Resume,
             as: 'resumes',
@@ -191,7 +200,7 @@ router.get('/employer/all', verifyToken, async (req, res) => {
         username: app.user.username,
         email: app.user.email,
         phone: app.user.phone,
-        avatar: app.user.avatar,
+        avatar: app.user.avatar || app.user.photo,
         resumes: app.user.resumes
       } : null
     }));

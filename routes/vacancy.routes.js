@@ -269,8 +269,8 @@ router.get('/recommended/:userId', cacheMiddleware(300), async (req, res) => {
     // Сортируем по совпадению (сначала лучшие)
     vacanciesWithScore.sort((a, b) => b.matchScore - a.matchScore);
 
-    // Фильтруем только вакансии с совпадением более 20%
-    const filteredVacancies = vacanciesWithScore.filter(v => v.matchScore > 20);
+    // Фильтруем только вакансии с совпадением более 50%
+    const filteredVacancies = vacanciesWithScore.filter(v => v.matchScore > 50);
 
     res.json(filteredVacancies);
   } catch (error) {
