@@ -16,7 +16,11 @@ class EmailService {
    * Отправка письма с подтверждением email
    */
   async sendVerificationEmail(email, username, verificationToken) {
-    const verificationUrl = `${process.env.CLIENT_URL}/verify-email/${verificationToken}`;
+    const clientUrl = process.env.CLIENT_URL || 'http://localhost:3000';
+    const verificationUrl = `${clientUrl}/verify-email/${verificationToken}`;
+
+    console.log('[EMAIL DEBUG] CLIENT_URL:', process.env.CLIENT_URL);
+    console.log('[EMAIL DEBUG] Verification URL:', verificationUrl);
 
     const mailOptions = {
       from: {
@@ -193,7 +197,11 @@ class EmailService {
    * Отправка письма для сброса пароля
    */
   async sendPasswordResetEmail(email, username, resetToken) {
-    const resetUrl = `${process.env.CLIENT_URL}/reset-password/${resetToken}`;
+    const clientUrl = process.env.CLIENT_URL || 'http://localhost:3000';
+    const resetUrl = `${clientUrl}/reset-password/${resetToken}`;
+
+    console.log('[EMAIL DEBUG] CLIENT_URL:', process.env.CLIENT_URL);
+    console.log('[EMAIL DEBUG] Reset URL:', resetUrl);
 
     const mailOptions = {
       from: {

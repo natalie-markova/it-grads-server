@@ -14,6 +14,9 @@ if (fs.existsSync(path.join(__dirname, ".env.production"))) {
   console.log("📝 Loaded .env");
 }
 
+// Debug: проверяем что CLIENT_URL загрузился
+console.log("🌐 CLIENT_URL:", process.env.CLIENT_URL || "NOT SET");
+
 const express = require("express");
 const https = require("https");
 const http = require("http");
